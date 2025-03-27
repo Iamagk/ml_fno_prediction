@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { predictMarket } from "./api";
 import "./index.css";
+import logo from "./symbol.jpg"; // Ensure this is correctly placed in 'src'
 
 const FEATURE_NAMES = [
   "Close", "High", "Low", "Open", "Volume", "SMA_5", "SMA_10", "RSI_14", "MACD", "MACD_Signal",
@@ -37,13 +38,11 @@ const App = () => {
     try {
       const response = await fetch(`http://127.0.0.1:8000/fetch_yfinance?symbol=${symbol}`);
       const data = await response.json();
-
       console.log("Fetched Data for:", symbol, data);
       if (data.error) {
         console.error("Error fetching data:", data.error);
         return;
       }
-
       const newFeatures = FEATURE_NAMES.map(feature => data[feature] || 0);
       setFeatures(newFeatures);
     } catch (error) {
@@ -68,20 +67,25 @@ const App = () => {
       console.error("Error fetching prediction:", error);
     }
   };
+
   const fetchNifty50Prediction = async () => {
     try {
-        const response = await fetch("http://127.0.0.1:8000/predict_nifty50");
-        const data = await response.json();
-        console.log("NIFTY 50 Prediction:", data);
-        alert(`Prediction: ${data.suggested_action}, Strike Price: ${data.strike_price}, Confidence: ${data.confidence}%`);
+      const response = await fetch("http://127.0.0.1:8000/predict_nifty50");
+      const data = await response.json();
+      console.log("NIFTY 50 Prediction:", data);
+      alert(`Prediction: ${data.suggested_action}, Strike Price: ${data.strike_price}, Confidence: ${data.confidence}%`);
     } catch (error) {
-        console.error("Error fetching NIFTY 50 prediction:", error);
+      console.error("Error fetching NIFTY 50 prediction:", error);
     }
-};
+  };
 
   return (
-    <div className="container">
-      <h1>F&O Market Prediction</h1>
+      <div className="container">
+        {/* Title with small logo beside it */}
+        <div className="title-container">
+          <img src={logo} alt="Logo" className="small-logo" />
+          <h1>F&O Market Prediction</h1>
+        </div>
 
       <div className="stock-selector">
         <input
@@ -114,8 +118,9 @@ const App = () => {
           </div>
         ))}
       </div>
+
       <button onClick={fetchNifty50Prediction} className="nifty50-button">
-      Predict NIFTY 50
+        Predict NIFTY 50
       </button>
 
       <button onClick={handlePredict}>Predict</button>
