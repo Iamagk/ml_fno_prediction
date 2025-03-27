@@ -68,6 +68,16 @@ const App = () => {
       console.error("Error fetching prediction:", error);
     }
   };
+  const fetchNifty50Prediction = async () => {
+    try {
+        const response = await fetch("http://127.0.0.1:8000/predict_nifty50");
+        const data = await response.json();
+        console.log("NIFTY 50 Prediction:", data);
+        alert(`Prediction: ${data.suggested_action}, Strike Price: ${data.strike_price}, Confidence: ${data.confidence}%`);
+    } catch (error) {
+        console.error("Error fetching NIFTY 50 prediction:", error);
+    }
+};
 
   return (
     <div className="container">
@@ -104,6 +114,9 @@ const App = () => {
           </div>
         ))}
       </div>
+      <button onClick={fetchNifty50Prediction} className="nifty50-button">
+      Predict NIFTY 50
+      </button>
 
       <button onClick={handlePredict}>Predict</button>
       <button onClick={handlePredictLive}>Predict Live</button>

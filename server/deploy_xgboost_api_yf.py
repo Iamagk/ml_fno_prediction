@@ -8,6 +8,7 @@ from pydantic import BaseModel
 import logging
 import os
 import time
+from datetime import datetime, timedelta  # Import datetime
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -20,6 +21,19 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+def get_next_expiry():
+    today = datetime.today()
+    weekday = today.weekday()  # Monday = 0, Sunday = 6
+
+    # If today is Thursday or after, get next Thursday
+    if weekday >= 3:  
+        days_until_next_expiry = (3 - weekday) + 7  # Move to next Thursday
+    else:
+        days_until_next_expiry = 3 - weekday  # This week's Thursday
+
+    next_expiry = today + timedelta(days=days_until_next_expiry)
+    return next_expiry.strftime("%Y-%m-%d")
 
 @app.get("/")
 def home():
@@ -48,7 +62,12 @@ logger = logging.getLogger(__name__)
 
 # Function to fetch stock data with retries
 def fetch_stock_data(symbol):
-    possible_symbols = [f"{symbol}.NS", f"{symbol}.BO", symbol]  # NSE, BSE, and direct symbol
+    # Ensure NIFTY50 is fetched directly without suffix
+    if symbol.upper() == "^NSEI":
+        possible_symbols = [symbol]
+    else:
+        possible_symbols = [f"{symbol}.NS", f"{symbol}.BO", symbol]  # NSE, BSE, and direct symbol
+    
     for ticker in possible_symbols:
         for attempt in range(3):  # Retry up to 3 times
             try:
@@ -83,6 +102,7 @@ def fetch_stock_data(symbol):
 
     logger.error(f"Failed to fetch stock data for {symbol} after multiple attempts.")
     return None
+
 @app.get("/fetch_yfinance")
 def fetch_yfinance(symbol: str):
     try:
@@ -124,13 +144,16 @@ def predict_live(symbol: str):
         else:  
             strike_price = int(current_price - (current_price * 0.01))  
             stop_loss = int(current_price + (current_price * 0.02))  
+        
+        # Use dynamic expiry date
+        expiry_date = get_next_expiry()
 
         response = {
             "prediction": int(prediction),
             "suggested_action": "Buy Call Option" if prediction == 1 else "Buy Put Option",
             "strike_price": f"{strike_price} CE" if prediction == 1 else f"{strike_price} PE",
             "stop_loss": stop_loss,
-            "expiry": "This Week",
+            "expiry": expiry_date,  # Updated expiry date dynamically
             "confidence": np.random.randint(60, 90)  # Random confidence level
         }
 
@@ -143,6 +166,75 @@ def predict_live(symbol: str):
     
 class StockInput(BaseModel):
     symbol: str
+
+@app.get("/predict_nifty50")
+def predict_nifty50():
+    try:
+        symbol = "^NSEI"  # Yahoo Finance symbol for NIFTY 50
+        logger.info(f"Fetching data for NIFTY 50 ({symbol})")
+
+        # Fetch NIFTY 50 data
+        live_data = fetch_stock_data(symbol)
+
+        if live_data is None or live_data.empty:
+            logger.warning(f"No data available for NIFTY 50")
+            return {
+                "prediction": "No Data Available",
+                "suggested_action": "N/A",
+                "strike_price": "N/A",
+                "stop_loss": "N/A",
+                "expiry": "N/A",
+                "confidence": "N/A"
+            }
+
+        logger.info(f"Live data fetched for NIFTY 50: {live_data}")
+
+        # Ensure only the expected features are passed
+        feature_data = {col: float(live_data[col].values[0]) for col in FEATURE_NAMES if col in live_data}
+        df = pd.DataFrame([feature_data])
+
+        # Make prediction
+        prediction = model.predict(df)[0]
+
+        # Extract current price for calculations
+        current_price = feature_data.get('Close', 0)
+        if current_price == 0:
+            raise ValueError("Current price of NIFTY 50 is unavailable.")
+
+        # Determine strike price & stop loss
+        if prediction == 1:
+            strike_price = int(current_price + (current_price * 0.01))
+            stop_loss = int(current_price - (current_price * 0.02))
+        else:
+            strike_price = int(current_price - (current_price * 0.01))
+            stop_loss = int(current_price + (current_price * 0.02))
+
+        # Use dynamic expiry date
+        expiry_date = get_next_expiry()
+
+        response = {
+            "prediction": int(prediction),
+            "suggested_action": "Buy Call Option" if prediction == 1 else "Buy Put Option",
+            "strike_price": f"{strike_price} CE" if prediction == 1 else f"{strike_price} PE",
+            "stop_loss": stop_loss,
+            "expiry": expiry_date,  #  Updated expiry date dynamically
+            "confidence": np.random.randint(60, 90)  # Random confidence level
+        }
+
+        logger.info(f"NIFTY 50 API Response: {response}")
+        return response
+
+    except Exception as e:
+        logger.error(f"Error in NIFTY 50 prediction: {str(e)}")
+        return {
+            "prediction": "Error",
+            "suggested_action": "N/A",
+            "strike_price": "N/A",
+            "stop_loss": "N/A",
+            "expiry": "N/A",
+            "confidence": "N/A"
+        }
+    
 
 @app.post("/predict")
 def predict(stock: StockInput):
