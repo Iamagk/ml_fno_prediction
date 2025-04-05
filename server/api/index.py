@@ -8,7 +8,7 @@ from pydantic import BaseModel
 import logging
 import os
 import time
-from datetime import datetime, timedelta  # Import datetime
+from datetime import datetime, timedelta
 from scipy.stats import norm
 import math
 
@@ -18,7 +18,7 @@ app = FastAPI()
 # Enable CORS for frontend integration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Replace with your frontend's origin
+    allow_origins=["http://localhost:3000", "http://fnopredictionclient.vercel.app/"],  # Add your frontend's URL
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -636,8 +636,4 @@ def estimate_option_price(symbol, current_price, strike_price, expiry_date, opti
     except Exception as e:
         logger.error(f"Error estimating option price: {e}")
         return None
-
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
 
