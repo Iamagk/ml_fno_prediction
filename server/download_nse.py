@@ -58,46 +58,15 @@ logger = logging.getLogger(__name__)
 
 # Function to fetch stock data with retries
 def fetch_stock_data(symbol):
-    # Ensure NIFTY50 is fetched directly without suffix
-    if symbol.upper() == "^NSEI":
-        possible_symbols = [symbol]
-    else:
-        possible_symbols = [f"{symbol}.NS", f"{symbol}.BO", symbol]  # NSE, BSE, and direct symbol
-    
-    for ticker in possible_symbols:
-        for attempt in range(3):  # Retry up to 3 times
-            try:
-                logger.info(f"Fetching data for {ticker} (Attempt {attempt+1})")
-                stock = yf.Ticker(ticker)
-                stock_data = stock.history(period="1d")
-
-                if not stock_data.empty:
-                    close_price = float(stock_data["Close"].iloc[-1])
-                    high_price = float(stock_data["High"].iloc[-1])
-                    low_price = float(stock_data["Low"].iloc[-1])
-                    open_price = float(stock_data["Open"].iloc[-1])
-                    volume = int(stock_data["Volume"].iloc[-1])
-
-                    # Fill missing values with default placeholders
-                    live_data = {
-                        "Close": close_price, "High": high_price, "Low": low_price, "Open": open_price, "Volume": volume,
-                        "SMA_5": close_price, "SMA_10": close_price, "RSI_14": 50, "MACD": 0, "MACD_Signal": 0,
-                        "EMA_9": close_price, "EMA_21": close_price, "EMA_50": close_price, "EMA_200": close_price,
-                        "BB_upper": close_price, "BB_middle": close_price, "BB_lower": close_price, "MACD_Hist": 0,
-                        "STOCH_K": 50, "STOCH_D": 50, "ATR": 0, "ROC_10": 0, "OBV": 0, "VWAP": 0, "ADX": 0, "CCI": 0,
-                        "WILLR_14": 50, "MOM_10": 0, "CMF": 0, "PSAR": 0, "Aroon_Up": 0, "Aroon_Down": 0, "Return": 0
-                    }
-                    return pd.DataFrame([live_data])
-                
-                logger.warning(f"No data found for {ticker}, retrying...")
-                time.sleep(2 ** attempt)  # Exponential backoff
-
-            except Exception as e:
-                logger.error(f"Error fetching {ticker} (Attempt {attempt+1}): {e}")
-                time.sleep(2 ** attempt)  # Wait before retrying
-
-    logger.error(f"Failed to fetch stock data for {symbol} after multiple attempts.")
-    return None
+    try:
+        stock = yf.Ticker(symbol)
+        data = stock.history(period="1d")
+        if data.empty:
+            raise ValueError("No data found for the given symbol.")
+        return data
+    except Exception as e:
+        print(f"Error fetching stock data: {e}")
+        return None
 
 @app.get("/fetch_yfinance")
 def fetch_yfinance(symbol: str):
