@@ -67,32 +67,79 @@ def fetch_stock_data(symbol):
         possible_symbols = [symbol]
     else:
         possible_symbols = [f"{symbol}.NS", f"{symbol}.BO", symbol]  # NSE, BSE, and direct symbol
-    
+
     for ticker in possible_symbols:
         for attempt in range(3):  # Retry up to 3 times
             try:
                 logger.info(f"Fetching data for {ticker} (Attempt {attempt+1})")
                 stock = yf.Ticker(ticker)
-                stock_data = stock.history(period="1d")
+                stock_data = stock.history(period="90d")  # Fetch 90 days of data
+                stock_data = stock_data.dropna(subset=['Close'])
 
                 if not stock_data.empty:
-                    close_price = float(stock_data["Close"].iloc[-1])
-                    high_price = float(stock_data["High"].iloc[-1])
-                    low_price = float(stock_data["Low"].iloc[-1])
-                    open_price = float(stock_data["Open"].iloc[-1])
-                    volume = int(stock_data["Volume"].iloc[-1])
+                    # Calculate additional features
+                    stock_data['ATR'] = calculate_atr(stock_data, period=14)
+                    stock_data['SMA_5'] = calculate_sma(stock_data, window=5)
+                    stock_data['SMA_10'] = calculate_sma(stock_data, window=10)
+                    stock_data['RSI_14'] = calculate_rsi(stock_data, period=14)
+                    stock_data['MACD'], stock_data['MACD_Signal'] = calculate_macd(stock_data)
+                    stock_data['MACD_Hist'] = calculate_macd_hist(stock_data)
+                    stock_data['STOCH_K'], stock_data['STOCH_D'] = calculate_stochastic(stock_data)
+                    stock_data['ROC_10'] = calculate_roc(stock_data)
+                    stock_data['OBV'] = calculate_obv(stock_data)
+                    stock_data['VWAP'] = calculate_vwap(stock_data)
+                    stock_data['ADX'] = calculate_adx(stock_data)
+                    stock_data['CCI'] = calculate_cci(stock_data)
+                    stock_data['WILLR_14'] = calculate_willr(stock_data)
+                    stock_data['MOM_10'] = calculate_momentum(stock_data)
+                    stock_data['CMF'] = calculate_cmf(stock_data)
+                    stock_data['PSAR'] = calculate_psar(stock_data)
+                    stock_data['Aroon_Up'], stock_data['Aroon_Down'] = calculate_aroon(stock_data)
+                    # Calculate daily return
+                    stock_data['Return'] = stock_data['Close'].pct_change() * 100  # Percentage change in closing price
+
+                    # Extract the latest row of data
+                    latest_data = stock_data.iloc[-1]
 
                     # Fill missing values with default placeholders
                     live_data = {
-                        "Close": close_price, "High": high_price, "Low": low_price, "Open": open_price, "Volume": volume,
-                        "SMA_5": close_price, "SMA_10": close_price, "RSI_14": 50, "MACD": 0, "MACD_Signal": 0,
-                        "EMA_9": close_price, "EMA_21": close_price, "EMA_50": close_price, "EMA_200": close_price,
-                        "BB_upper": close_price, "BB_middle": close_price, "BB_lower": close_price, "MACD_Hist": 0,
-                        "STOCH_K": 50, "STOCH_D": 50, "ATR": 0, "ROC_10": 0, "OBV": 0, "VWAP": 0, "ADX": 0, "CCI": 0,
-                        "WILLR_14": 50, "MOM_10": 0, "CMF": 0, "PSAR": 0, "Aroon_Up": 0, "Aroon_Down": 0, "Return": 0
+                        "Close": latest_data["Close"],
+                        "High": latest_data["High"],
+                        "Low": latest_data["Low"],
+                        "Open": latest_data["Open"],
+                        "Volume": latest_data["Volume"],
+                        "SMA_5": latest_data["SMA_5"],
+                        "SMA_10": latest_data["SMA_10"],
+                        "RSI_14": latest_data["RSI_14"],
+                        "MACD": latest_data["MACD"],
+                        "MACD_Signal": latest_data["MACD_Signal"],
+                        "ATR": latest_data["ATR"],
+                        # Add placeholders for other features if needed
+                        "EMA_9": latest_data["Close"],  # Placeholder
+                        "EMA_21": latest_data["Close"],  # Placeholder
+                        "EMA_50": latest_data["Close"],  # Placeholder
+                        "EMA_200": latest_data["Close"],  # Placeholder
+                        "BB_upper": latest_data["Close"],  # Placeholder
+                        "BB_middle": latest_data["Close"],  # Placeholder
+                        "BB_lower": latest_data["Close"],  # Placeholder
+                        "MACD_Hist": latest_data["MACD_Hist"],
+                        "STOCH_K": latest_data["STOCH_K"],
+                        "STOCH_D": latest_data["STOCH_D"],
+                        "ROC_10": latest_data["ROC_10"],
+                        "OBV": latest_data["OBV"],
+                        "VWAP": latest_data["VWAP"],
+                        "ADX": latest_data["ADX"],
+                        "CCI": latest_data["CCI"],
+                        "WILLR_14": latest_data["WILLR_14"],
+                        "MOM_10": latest_data["MOM_10"],
+                        "CMF": latest_data["CMF"],
+                        "PSAR": latest_data["PSAR"],
+                        "Aroon_Up": latest_data["Aroon_Up"],
+                        "Aroon_Down": latest_data["Aroon_Down"],
+                        "Return": latest_data["Return"],  # Use the calculated return
                     }
                     return pd.DataFrame([live_data])
-                
+
                 logger.warning(f"No data found for {ticker}, retrying...")
                 time.sleep(2 ** attempt)  # Exponential backoff
 
@@ -123,61 +170,12 @@ def fetch_yfinance(symbol: str):
 def predict_live(symbol: str):
     try:
         logger.info(f"Received request for symbol: {symbol}")
+
+        # Fetch live stock data
         live_data = fetch_stock_data(symbol)
 
         if live_data is None or live_data.empty:
-            return {"prediction": "No Data Available", "suggested_action": "N/A", "strike_price": "N/A", "stop_loss": "N/A", "expiry": "N/A", "confidence": "N/A"}
-
-        feature_data = {col: float(live_data[col].values[0]) for col in FEATURE_NAMES if col in live_data}
-        df = pd.DataFrame([feature_data])
-        prediction = model.predict(df)[0]
-
-        # Extract current price
-        current_price = feature_data.get('Close', 0)
-        if current_price == 0:
-            raise ValueError("Current price of stock is unavailable.")
-
-        # Determine strike price & stop loss
-        if prediction == 1:  
-            strike_price = int(current_price + (current_price * 0.01))  
-            stop_loss = int(current_price - (current_price * 0.02))  
-        else:  
-            strike_price = int(current_price - (current_price * 0.01))  
-            stop_loss = int(current_price + (current_price * 0.02))  
-        
-        # Use dynamic expiry date
-        expiry_date = get_next_expiry()
-
-        response = {
-            "prediction": int(prediction),
-            "suggested_action": "Buy Call Option" if prediction == 1 else "Buy Put Option",
-            "strike_price": f"{strike_price} CE" if prediction == 1 else f"{strike_price} PE",
-            "stop_loss": stop_loss,
-            "expiry": expiry_date,  # Updated expiry date dynamically
-            "confidence": np.random.randint(60, 90)  # Random confidence level
-        }
-
-        logger.info(f"API Response: {response}")
-        return response
-
-    except Exception as e:
-        logger.error(f"Error in API: {str(e)}")
-        return {"prediction": "Error", "suggested_action": "N/A", "strike_price": "N/A", "stop_loss": "N/A", "expiry": "N/A", "confidence": "N/A"}
-    
-class StockInput(BaseModel):
-    symbol: str
-
-@app.get("/predict_nifty50")
-def predict_nifty50():
-    try:
-        symbol = "^NSEI"  # Yahoo Finance symbol for NIFTY 50
-        logger.info(f"Fetching data for NIFTY 50 ({symbol})")
-
-        # Fetch NIFTY 50 data
-        live_data = fetch_stock_data(symbol)
-
-        if live_data is None or live_data.empty:
-            logger.warning(f"No data available for NIFTY 50")
+            logger.warning(f"No data available for symbol: {symbol}")
             return {
                 "prediction": "No Data Available",
                 "suggested_action": "N/A",
@@ -187,7 +185,7 @@ def predict_nifty50():
                 "confidence": "N/A"
             }
 
-        logger.info(f"Live data fetched for NIFTY 50: {live_data}")
+        logger.info(f"Live data fetched for {symbol}: {live_data}")
 
         # Ensure only the expected features are passed
         feature_data = {col: float(live_data[col].values[0]) for col in FEATURE_NAMES if col in live_data}
@@ -199,33 +197,44 @@ def predict_nifty50():
         # Extract current price for calculations
         current_price = feature_data.get('Close', 0)
         if current_price == 0:
-            raise ValueError("Current price of NIFTY 50 is unavailable.")
+            raise ValueError("Current price of the stock is unavailable.")
 
-        # Determine strike price & stop loss
+        # Get actual model confidence score
+        confidence = get_model_confidence(model, df)
+
+        # Fetch the real strike price from Yahoo Finance
+        strike_price = get_nearest_strike_price(symbol, current_price) or current_price
+
+        # Calculate stop loss using technical indicators
+        atr = feature_data.get('ATR', 0)  # Average True Range
+        support_level = feature_data.get('Support', strike_price - atr)
+        resistance_level = feature_data.get('Resistance', strike_price + atr)
+
         if prediction == 1:
-            strike_price = int(current_price + (current_price * 0.01))
-            stop_loss = int(current_price - (current_price * 0.02))
+            stop_loss = int(support_level)  # Use support level as stop loss for a buy trade
         else:
-            strike_price = int(current_price - (current_price * 0.01))
-            stop_loss = int(current_price + (current_price * 0.02))
+            stop_loss = int(resistance_level)  # Use resistance level as stop loss for a sell trade
 
         # Use dynamic expiry date
         expiry_date = get_next_expiry()
+
+        # Log prediction history
+        update_trade_history(symbol, prediction, current_price)
 
         response = {
             "prediction": int(prediction),
             "suggested_action": "Buy Call Option" if prediction == 1 else "Buy Put Option",
             "strike_price": f"{strike_price} CE" if prediction == 1 else f"{strike_price} PE",
             "stop_loss": stop_loss,
-            "expiry": expiry_date,  #  Updated expiry date dynamically
-            "confidence": np.random.randint(60, 90)  # Random confidence level
+            "expiry": expiry_date,
+            "confidence": float(confidence)
         }
 
-        logger.info(f"NIFTY 50 API Response: {response}")
+        logger.info(f"API Response: {response}")
         return response
 
     except Exception as e:
-        logger.error(f"Error in NIFTY 50 prediction: {str(e)}")
+        logger.error(f"Error in API: {str(e)}")
         return {
             "prediction": "Error",
             "suggested_action": "N/A",
@@ -234,12 +243,211 @@ def predict_nifty50():
             "expiry": "N/A",
             "confidence": "N/A"
         }
+
+
+class StockInput(BaseModel):
+    symbol: str
+def get_nearest_strike_price(symbol, current_price):
+    """
+    Fetch the closest available strike price from Yahoo Finance options chain.
+    """
+    try:
+        ticker = yf.Ticker(symbol)
+        expiry_dates = ticker.options  # Get available expiry dates
+        if not expiry_dates:
+            return None
+
+        nearest_expiry = expiry_dates[0]  # Choose the closest expiry
+        options_chain = ticker.option_chain(nearest_expiry)
+
+        # Combine call and put strikes, then find the nearest one
+        available_strikes = sorted(set(options_chain.calls['strike'].tolist() + options_chain.puts['strike'].tolist()))
+        logger.info(f"Available strikes for {symbol}: {available_strikes}")
+        nearest_strike = min(available_strikes, key=lambda x: abs(x - current_price))
+
+        logger.info(f"Nearest strike price for {symbol} at current price {current_price}: {nearest_strike}")
+        return nearest_strike
+    except Exception as e:
+        logger.error(f"Error fetching strike price for {symbol}: {e}")
+        return None
     
+
+def get_model_confidence(model, df):
+    """
+    Get the actual confidence score from the model's prediction.
+    """
+    probabilities = model.predict_proba(df)  # Get probability for each class
+    confidence = max(probabilities[0]) * 100  # Convert to percentage
+    return round(confidence, 2)
+
+def calculate_atr(data, period=14):
+    high = data['High']
+    low = data['Low']
+    close = data['Close']
+    tr1 = high - low
+    tr2 = abs(high - close.shift(1))
+    tr3 = abs(low - close.shift(1))
+    true_range = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+    atr = true_range.rolling(window=period).mean()
+    return atr
+
+def calculate_sma(data, window):
+    return data['Close'].rolling(window=window).mean()
+
+def calculate_rsi(data, period=14):
+    delta = data['Close'].diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+    rs = gain / loss
+    rsi = 100 - (100 / (1 + rs))
+    return rsi
+
+def calculate_macd(data, short_window=12, long_window=26, signal_window=9):
+    short_ema = data['Close'].ewm(span=short_window, adjust=False).mean()
+    long_ema = data['Close'].ewm(span=long_window, adjust=False).mean()
+    macd = short_ema - long_ema
+    signal = macd.ewm(span=signal_window, adjust=False).mean()
+    return macd, signal
+
+def calculate_macd_hist(data):
+    macd, signal = calculate_macd(data)
+    macd_hist = macd - signal
+    return macd_hist
+
+def calculate_stochastic(data, period=14):
+    low_min = data['Low'].rolling(window=period).min()
+    high_max = data['High'].rolling(window=period).max()
+    stoch_k = 100 * (data['Close'] - low_min) / (high_max - low_min)
+    stoch_d = stoch_k.rolling(window=3).mean()  # 3-period moving average of %K
+    return stoch_k, stoch_d
+
+def calculate_roc(data, period=10):
+    roc = ((data['Close'] - data['Close'].shift(period)) / data['Close'].shift(period)) * 100
+    return roc
+
+def calculate_obv(data):
+    obv = (np.sign(data['Close'].diff()) * data['Volume']).fillna(0).cumsum()
+    return obv
+
+def calculate_vwap(data):
+    vwap = (data['Close'] * data['Volume']).cumsum() / data['Volume'].cumsum()
+    return vwap
+
+def calculate_adx(data, period=14):
+    high = data['High']
+    low = data['Low']
+    close = data['Close']
+
+    tr1 = high - low
+    tr2 = abs(high - close.shift(1))
+    tr3 = abs(low - close.shift(1))
+    true_range = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+
+    plus_dm = high.diff()
+    minus_dm = low.diff()
+
+    plus_dm[plus_dm < 0] = 0
+    minus_dm[minus_dm > 0] = 0
+
+    tr_smooth = true_range.rolling(window=period).sum()
+    plus_dm_smooth = plus_dm.rolling(window=period).sum()
+    minus_dm_smooth = abs(minus_dm.rolling(window=period).sum())
+
+    plus_di = 100 * (plus_dm_smooth / tr_smooth)
+    minus_di = 100 * (minus_dm_smooth / tr_smooth)
+    dx = 100 * (abs(plus_di - minus_di) / (plus_di + minus_di))
+
+    adx = dx.rolling(window=period).mean()
+    return adx
+
+def calculate_cci(data, period=20):
+    typical_price = (data['High'] + data['Low'] + data['Close']) / 3
+    sma = typical_price.rolling(window=period).mean()
+    mean_deviation = typical_price.rolling(window=period).apply(lambda x: np.mean(np.abs(x - x.mean())), raw=True)
+    cci = (typical_price - sma) / (0.015 * mean_deviation)
+    return cci
+
+def calculate_willr(data, period=14):
+    high_max = data['High'].rolling(window=period).max()
+    low_min = data['Low'].rolling(window=period).min()
+    willr = -100 * ((high_max - data['Close']) / (high_max - low_min))
+    return willr
+
+def calculate_momentum(data, period=10):
+    momentum = data['Close'] - data['Close'].shift(period)
+    return momentum
+
+def calculate_cmf(data, period=20):
+    money_flow_multiplier = ((data['Close'] - data['Low']) - (data['High'] - data['Close'])) / (data['High'] - data['Low'])
+    money_flow_volume = money_flow_multiplier * data['Volume']
+    cmf = money_flow_volume.rolling(window=period).sum() / data['Volume'].rolling(window=period).sum()
+    return cmf
+
+def calculate_psar(data, step=0.02, max_step=0.2):
+    high = data['High']
+    low = data['Low']
+    close = data['Close']
+
+    psar = close.copy()
+    bull = True
+    af = step
+    ep = low.iloc[0]
+
+    for i in range(1, len(close)):
+        prev_psar = psar.iloc[i - 1]
+        if bull:
+            psar.iloc[i] = prev_psar + af * (ep - prev_psar)
+            if low.iloc[i] < psar.iloc[i]:
+                bull = False
+                psar.iloc[i] = ep
+                af = step
+                ep = low.iloc[i]
+        else:
+            psar.iloc[i] = prev_psar + af * (ep - prev_psar)
+            if high.iloc[i] > psar.iloc[i]:
+                bull = True
+                psar.iloc[i] = ep
+                af = step
+                ep = high.iloc[i]
+
+        if bull:
+            if high.iloc[i] > ep:
+                ep = high.iloc[i]
+                af = min(af + step, max_step)
+        else:
+            if low.iloc[i] < ep:
+                ep = low.iloc[i]
+                af = min(af + step, max_step)
+
+    return psar
+
+def calculate_aroon(data, period=25):
+    aroon_up = 100 * (period - data['High'].rolling(window=period).apply(lambda x: period - np.argmax(x), raw=True)) / period
+    aroon_down = 100 * (period - data['Low'].rolling(window=period).apply(lambda x: period - np.argmin(x), raw=True)) / period
+    return aroon_up, aroon_down
 
 @app.post("/predict")
 def predict(stock: StockInput):
     return predict_live(stock.symbol)
 
+trade_history = []  # Global list to track predictions
+
+def update_trade_history(symbol, prediction, actual_price):
+    """
+    Store the model's predictions and compare them to actual market behavior.
+    """
+    trade_history.append({
+        "symbol": symbol,
+        "prediction": prediction,
+        "actual_price": actual_price,
+        "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    })
+
+    # Keep only the last 100 trades to prevent memory issues
+    if len(trade_history) > 100:
+        trade_history.pop(0)
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+

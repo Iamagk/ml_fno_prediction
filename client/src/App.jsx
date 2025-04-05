@@ -15,6 +15,7 @@ const App = () => {
   const [prediction, setPrediction] = useState(null);
   const [stockSymbol, setStockSymbol] = useState("");
   const [searchHistory, setSearchHistory] = useState([]);
+  const [optionsPrediction, setOptionsPrediction] = useState(null);
 
   const handleChange = (index, value) => {
     const newFeatures = [...features];
@@ -26,66 +27,91 @@ const App = () => {
     setStockSymbol(event.target.value.toUpperCase());
   };
 
-  const handleSearch = () => {
-    if (!stockSymbol.trim()) return;
-    if (!searchHistory.includes(stockSymbol)) {
-      setSearchHistory([stockSymbol, ...searchHistory].slice(0, 5)); // Keep last 5 searches
+  const handleSearch = async (symbol = stockSymbol) => {
+    if (!symbol.trim()) {
+      alert("Please enter a valid stock symbol.");
+      return;
     }
-    fetchYahooFinanceData(stockSymbol);
-  };
 
-  const fetchYahooFinanceData = async (symbol) => {
+    setSearchHistory((prevHistory) => {
+      const updatedHistory = [symbol, ...prevHistory.filter((item) => item !== symbol)];
+      return updatedHistory.slice(0, 5); // Limit to 5 recent searches
+    });
+
     try {
       const response = await fetch(`http://127.0.0.1:8000/fetch_yfinance?symbol=${symbol}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
       const data = await response.json();
-      console.log("Fetched Data for:", symbol, data);
+      console.log("API Response for fetch_yfinance:", data);
+
       if (data.error) {
         console.error("Error fetching data:", data.error);
+        alert(data.error);
         return;
       }
-      const newFeatures = FEATURE_NAMES.map(feature => data[feature] || 0);
+
+      const newFeatures = FEATURE_NAMES.map((feature) => data[feature] || 0);
       setFeatures(newFeatures);
     } catch (error) {
-      console.error("Error fetching Yahoo Finance data:", error);
+      console.error("Error fetching stock data:", error);
+      alert("Failed to fetch stock data. Please try again later.");
+    }
+  };
+
+  const handleRecentSearchSelect = (event) => {
+    const selectedSymbol = event.target.value;
+    if (selectedSymbol) {
+      setStockSymbol(selectedSymbol);
     }
   };
 
   const handlePredict = async () => {
-    const featureValues = features.map(val => parseFloat(val) || 0);
-    console.log("Features sent to model:", featureValues);
-    const result = await predictMarket(featureValues);
-    setPrediction(result);
+    try {
+      const featureValues = features.map((val) => parseFloat(val) || 0); // Convert feature values to numbers
+      console.log("Features sent to model:", featureValues);
+
+      // Call the predictMarket API (or your backend endpoint) with the feature values
+      const result = await predictMarket(featureValues);
+      console.log("Prediction result:", result);
+
+      // Update the prediction state with the result
+      setPrediction(result);
+    } catch (error) {
+      console.error("Error during manual prediction:", error);
+      alert("Failed to make a prediction. Please try again.");
+    }
   };
 
   const handlePredictLive = async () => {
     try {
-      const response = await fetch(`http://127.0.0.1:8000/predict_live?symbol=${stockSymbol}`);
+      const response = await fetch(`http://127.0.0.1:8000/predict_with_options?symbol=${stockSymbol}`);
       const data = await response.json();
-      console.log("Received API Data:", data);
+      console.log("API Response for predict_with_options:", data); // Log the response
+
+      if (data.error) {
+        console.error("Error fetching prediction:", data.error);
+        alert(data.error);
+        return;
+      }
+
+      // Update both prediction and optionsPrediction states
       setPrediction(data);
+      setOptionsPrediction(data);
     } catch (error) {
       console.error("Error fetching prediction:", error);
-    }
-  };
-
-  const fetchNifty50Prediction = async () => {
-    try {
-      const response = await fetch("http://127.0.0.1:8000/predict_nifty50");
-      const data = await response.json();
-      console.log("NIFTY 50 Prediction:", data);
-      alert(`Prediction: ${data.suggested_action}, Strike Price: ${data.strike_price}, Confidence: ${data.confidence}%`);
-    } catch (error) {
-      console.error("Error fetching NIFTY 50 prediction:", error);
+      alert("Failed to fetch prediction. Please try again later.");
     }
   };
 
   return (
-      <div className="container">
-        {/* Title with small logo beside it */}
-        <div className="title-container">
-          <img src={logo} alt="Logo" className="small-logo" />
-          <h1>F&O Market Prediction</h1>
-        </div>
+    <div className="container">
+      <div className="title-container">
+        <img src={logo} alt="Logo" className="small-logo" />
+        <h1>F&O Market Prediction</h1>
+      </div>
 
       <div className="stock-selector">
         <input
@@ -95,12 +121,24 @@ const App = () => {
           onChange={handleStockChange}
         />
         <button onClick={handleSearch}>Search</button>
+        <button
+          onClick={() => {
+            setStockSymbol("^NSEI");
+            handleSearch("^NSEI");
+          }}
+        >
+          NIFTY50
+        </button>
 
         {searchHistory.length > 0 && (
-          <select onChange={(e) => setStockSymbol(e.target.value)}>
-            <option value="">Recent Searches</option>
+          <select onChange={handleRecentSearchSelect} value="">
+            <option value="" disabled>
+              Recent Searches
+            </option>
             {searchHistory.map((ticker, index) => (
-              <option key={index} value={ticker}>{ticker}</option>
+              <option key={index} value={ticker}>
+                {ticker}
+              </option>
             ))}
           </select>
         )}
@@ -119,21 +157,27 @@ const App = () => {
         ))}
       </div>
 
-      <button onClick={fetchNifty50Prediction} className="nifty50-button">
-        Predict NIFTY 50
-      </button>
-
-      <button onClick={handlePredict}>Predict</button>
+      <button onClick={handlePredict}>Predict Manual</button>
       <button onClick={handlePredictLive}>Predict Live</button>
 
+      {/* Shared Prediction Summary */}
       {prediction && (
         <div>
-          <h2>Prediction: {prediction.prediction}</h2>
+          <h2>Prediction Summary</h2>
+          <p>🔹 Prediction: {prediction.prediction}</p>
           <p>🔹 Suggested Action: {prediction.suggested_action || "N/A"}</p>
           <p>🔹 Strike Price: {prediction.strike_price || "N/A"}</p>
           <p>🔹 Stop Loss: {prediction.stop_loss || "N/A"}</p>
           <p>🔹 Expiry: {prediction.expiry || "N/A"}</p>
           <p>🔹 Confidence: {prediction.confidence ? `${prediction.confidence}%` : "N/A"}</p>
+        </div>
+      )}
+
+      {/* Options Prediction (Unique Data Only) */}
+      {optionsPrediction && optionsPrediction.option_price && (
+        <div>
+          <h2>Options Prediction</h2>
+          <p>🔹 Option Price: {optionsPrediction.option_price || "N/A"}</p>
         </div>
       )}
     </div>

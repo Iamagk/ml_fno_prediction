@@ -1,10 +1,15 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 import xgboost as xgb
 import numpy as np
 import pandas as pd
+import yfinance as yf
 from fastapi.middleware.cors import CORSMiddleware
-from nsepython import nse_eq
 from pydantic import BaseModel
+import logging
+import os
+import time
+from datetime import datetime, timedelta
+import requests  # Import requests for NSE API
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -18,16 +23,29 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+def get_next_expiry():
+    today = datetime.today()
+    weekday = today.weekday()
+    if weekday >= 3:  
+        days_until_next_expiry = (3 - weekday) + 7  
+    else:
+        days_until_next_expiry = 3 - weekday  
+    next_expiry = today + timedelta(days=days_until_next_expiry)
+    return next_expiry.strftime("%Y-%m-%d")
+
 @app.get("/")
 def home():
     return {"message": "API is running!"}
 
-# Load the trained model
+# Load trained XGBoost model
 model_path = "models/fno_xgboost_model.json"
+
+if not os.path.exists(model_path):
+    raise FileNotFoundError(f"Model file not found at {model_path}")
+
 model = xgb.XGBClassifier()
 model.load_model(model_path)
 
-# Define expected features
 FEATURE_NAMES = [
     "Close", "High", "Low", "Open", "Volume", "SMA_5", "SMA_10", "RSI_14", "MACD", "MACD_Signal",
     "EMA_9", "EMA_21", "EMA_50", "EMA_200", "BB_upper", "BB_middle", "BB_lower", "MACD_Hist",
@@ -35,105 +53,42 @@ FEATURE_NAMES = [
     "CMF", "PSAR", "Aroon_Up", "Aroon_Down", "Return"
 ]
 
-# Function to fetch live stock data using nsepython
-def fetch_live_data(symbol):
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# Function to fetch nearest strike price from NSE API
+def get_nearest_strike_price(symbol, current_price):
     try:
-        data = nse_eq(symbol)
-
-        if not data:
-            raise ValueError(f"No price data found for {symbol}")
-
-        close_price = float(data['lastPrice'].replace(",", ""))
-        high_price = float(data['dayHigh'].replace(",", ""))
-        low_price = float(data['dayLow'].replace(",", ""))
-        open_price = float(data['dayOpen'].replace(",", ""))
-        volume = int(data['totalTradedVolume'].replace(",", ""))
-
-        # Simulated values for missing indicators
-        live_data = {
-            "Close": close_price,
-            "High": high_price,
-            "Low": low_price,
-            "Open": open_price,
-            "Volume": volume,
-            "SMA_5": close_price, "SMA_10": close_price, "RSI_14": 50,
-            "MACD": 0, "MACD_Signal": 0, "EMA_9": close_price, "EMA_21": close_price,
-            "EMA_50": close_price, "EMA_200": close_price, "BB_upper": close_price,
-            "BB_middle": close_price, "BB_lower": close_price, "MACD_Hist": 0,
-            "STOCH_K": 50, "STOCH_D": 50, "ATR": 0, "ROC_10": 0, "OBV": 0,
-            "VWAP": 0, "ADX": 0, "CCI": 0, "WILLR_14": 50, "MOM_10": 0, "CMF": 0,
-            "PSAR": 0, "Aroon_Up": 0, "Aroon_Down": 0, "Return": 0
-        }
-
-        return pd.DataFrame([live_data])
-
+        url = f"https://www.nseindia.com/api/option-chain-indices?symbol={symbol.upper()}"
+        headers = {"User-Agent": "Mozilla/5.0"}  # NSE API requires a user-agent
+        response = requests.get(url, headers=headers)
+        data = response.json()
+        available_strikes = sorted([entry['strikePrice'] for entry in data['records']['data']])
+        nearest_strike = min(available_strikes, key=lambda x: abs(x - current_price))
+        logger.info(f"Nearest strike price for {symbol} at {current_price}: {nearest_strike}")
+        return nearest_strike
     except Exception as e:
-        print(f"Error fetching live data for {symbol}: {e}")
+        logger.error(f"Error fetching strike price from NSE API for {symbol}: {e}")
         return None
 
 @app.get("/predict_live")
 def predict_live(symbol: str):
     try:
-        live_data = fetch_live_data(symbol)
-
+        logger.info(f"Received request for symbol: {symbol}")
+        live_data = fetch_stock_data(symbol)
         if live_data is None or live_data.empty:
-            return {
-                "prediction": "No Data Available",
-                "suggested_action": "N/A",
-                "strike_price": "N/A",
-                "stop_loss": "N/A",
-                "expiry": "N/A",
-                "confidence": "N/A"
-            }
-
-        # Convert live data to dictionary for prediction
+            return {"prediction": "No Data Available", "suggested_action": "N/A", "strike_price": "N/A", "stop_loss": "N/A", "expiry": "N/A", "confidence": "N/A"}
         feature_data = {col: float(live_data[col].values[0]) for col in FEATURE_NAMES if col in live_data}
         df = pd.DataFrame([feature_data])
-
-        # Predict using XGBoost model
         prediction = model.predict(df)[0]
-
         current_price = feature_data.get('Close', 0)
-        if current_price == 0:
-            raise ValueError("Current stock price is unavailable.")
-
-        # Dynamic strike price & stop loss
-        if prediction == 1:  
-            strike_price = int(current_price + (current_price * 0.01))  
-            stop_loss = int(current_price - (current_price * 0.02))  
-        else:  
-            strike_price = int(current_price - (current_price * 0.01))  
-            stop_loss = int(current_price + (current_price * 0.02))  
-
-        response = {
-            "prediction": int(prediction),
-            "suggested_action": "Buy Call Option" if prediction == 1 else "Buy Put Option",
-            "strike_price": f"{strike_price} CE" if prediction == 1 else f"{strike_price} PE",
-            "stop_loss": stop_loss,
-            "expiry": "This Week",
-            "confidence": np.random.randint(60, 90)  
-        }
-
-        print("API Response:", response)
+        confidence = get_model_confidence(model, df)
+        strike_price = get_nearest_strike_price(symbol, current_price) or current_price
+        expiry_date = get_next_expiry()
+        response = {"prediction": int(prediction), "suggested_action": "Buy Call Option" if prediction == 1 else "Buy Put Option", "strike_price": f"{strike_price} CE" if prediction == 1 else f"{strike_price} PE", "stop_loss": strike_price, "expiry": expiry_date, "confidence": float(confidence)}
         return response
-
     except Exception as e:
-        print("Error in API:", str(e))
-        return {
-            "prediction": "Error",
-            "suggested_action": "N/A",
-            "strike_price": "N/A",
-            "stop_loss": "N/A",
-            "expiry": "N/A",
-            "confidence": "N/A"
-        }
-
-class StockInput(BaseModel):
-    symbol: str
-
-@app.post("/predict")
-def predict(stock: StockInput):
-    return predict_live(stock.symbol)
+        return {"prediction": "Error", "suggested_action": "N/A", "strike_price": "N/A", "stop_loss": "N/A", "expiry": "N/A", "confidence": "N/A"}
 
 if __name__ == "__main__":
     import uvicorn
