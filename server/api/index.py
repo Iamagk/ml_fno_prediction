@@ -13,10 +13,9 @@ from scipy.stats import norm
 import math
 
 # Example: Access environment variables
-api_key = os.getenv("API_KEY")
+
 model_path = os.getenv("MODEL_PATH", "models/fno_xgboost_model.json")  # Default value if not set
-database_url = os.getenv("DATABASE_URL")
-secret_key = os.getenv("SECRET_KEY")
+
 
 # Initialize FastAPI app
 app = FastAPI()

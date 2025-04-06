@@ -1,0 +1,11 @@
+fastapi==0.110.0
+uvicorn==0.29.0
+xgboost==2.0.3
+numpy
+pandas
+yfinance==0.2.37
+nsepython==1.0.0
+scipy
+python-dateutil
+pytz
+requests
