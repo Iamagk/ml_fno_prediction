@@ -12,6 +12,12 @@ from datetime import datetime, timedelta
 from scipy.stats import norm
 import math
 
+# Example: Access environment variables
+api_key = os.getenv("API_KEY")
+model_path = os.getenv("MODEL_PATH", "models/fno_xgboost_model.json")  # Default value if not set
+database_url = os.getenv("DATABASE_URL")
+secret_key = os.getenv("SECRET_KEY")
+
 # Initialize FastAPI app
 app = FastAPI()
 
@@ -42,7 +48,7 @@ def home():
     return {"message": "API is running!"}
 
 # Load trained XGBoost model
-model_path = "models/fno_xgboost_model.json"
+model_path = os.getenv("MODEL_PATH", "models/fno_xgboost_model.json")
 
 if not os.path.exists(model_path):
     raise FileNotFoundError(f"Model file not found at {model_path}")
