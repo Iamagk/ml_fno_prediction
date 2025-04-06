@@ -642,3 +642,7 @@ def estimate_option_price(symbol, current_price, strike_price, expiry_date, opti
         logger.error(f"Error estimating option price: {e}")
         return None
 
+@app.get("/debug")
+def debug():
+    return {"status": "FastAPI is running!"}
+
