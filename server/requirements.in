@@ -1,6 +1,5 @@
 fastapi==0.110.0
 uvicorn==0.29.0
-xgboost==2.0.3
 numpy
 pandas
 yfinance==0.2.37
@@ -9,4 +8,5 @@ scipy
 python-dateutil
 pytz
 requests
-scikit-learn
+xgboost==1.7.6
+scikit-learn==1.2.2
