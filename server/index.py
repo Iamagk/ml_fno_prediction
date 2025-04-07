@@ -646,3 +646,8 @@ def estimate_option_price(symbol, current_price, strike_price, expiry_date, opti
 def debug():
     return {"status": "FastAPI is running!"}
 
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+
+
