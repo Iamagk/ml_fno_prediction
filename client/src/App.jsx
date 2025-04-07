@@ -10,6 +10,8 @@ const FEATURE_NAMES = [
   "CMF", "PSAR", "Aroon_Up", "Aroon_Down", "Return"
 ];
 
+const API_URL = process.env.REACT_APP_API_URL || "http://127.0.0.1:8000";
+
 const App = () => {
   const [features, setFeatures] = useState(Array(FEATURE_NAMES.length).fill(""));
   const [prediction, setPrediction] = useState(null);
@@ -39,7 +41,7 @@ const App = () => {
     });
 
     try {
-      const response = await fetch(`http://127.0.0.1:8000/fetch_yfinance?symbol=${symbol}`);
+      const response = await fetch(`${API_URL}/fetch_yfinance?symbol=${symbol}`);
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -87,7 +89,7 @@ const App = () => {
 
   const handlePredictLive = async () => {
     try {
-      const response = await fetch(`http://127.0.0.1:8000/predict_with_options?symbol=${stockSymbol}`);
+      const response = await fetch(`${API_URL}/predict_with_options?symbol=${stockSymbol}`);
       const data = await response.json();
       console.log("API Response for predict_with_options:", data); // Log the response
 
