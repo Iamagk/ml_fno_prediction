@@ -9,3 +9,4 @@ scipy
 python-dateutil
 pytz
 requests
+scikit-learn
