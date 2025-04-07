@@ -132,26 +132,34 @@ const App = () => {
       <button onClick={handlePredict}>Predict</button>
       <button onClick={handlePredictLive}>Predict Live</button>
 
-      {/* Shared Prediction Summary */}
-      {prediction && (
-        <div>
-          <h2>Prediction Summary</h2>
-          <p>🔹 Prediction: {prediction.prediction}</p>
-          <p>🔹 Suggested Action: {prediction.suggested_action || "N/A"}</p>
-          <p>🔹 Strike Price: {prediction.strike_price || "N/A"}</p>
-          <p>🔹 Stop Loss: {prediction.stop_loss || "N/A"}</p>
-          <p>🔹 Expiry: {prediction.expiry || "N/A"}</p>
-          <p>🔹 Confidence: {prediction.confidence ? `${prediction.confidence}%` : "N/A"}</p>
-        </div>
-      )}
+      {/* Prediction and Options Prediction Side by Side */}
+      <div style={{ display: "flex", justifyContent: "space-between", gap: "20px" }}>
+        {/* Prediction Summary */}
+        {prediction && (
+          <div style={{ flex: 1, border: "1px solid #ccc", padding: "10px", borderRadius: "5px" }}>
+            <h2>Prediction Summary</h2>
+            <p>🔹 Prediction: {prediction.prediction}</p>
+            <p>🔹 Suggested Action: {prediction.suggested_action || "N/A"}</p>
+            <p>🔹 Strike Price: {prediction.strike_price || "N/A"}</p>
+            <p>🔹 Stop Loss (Strike): {prediction.stop_loss_strike || "N/A"}</p>
+            <p>🔹 Expiry: {prediction.expiry || "N/A"}</p>
+            <p>🔹 Confidence: {prediction.confidence ? `${prediction.confidence}%` : "N/A"}</p>
+          </div>
+        )}
 
-      {/* Options Prediction */}
-      {optionsPrediction && optionsPrediction.option_price && (
-        <div>
-          <h2>Options Prediction</h2>
-          <p>🔹 Option Price: {optionsPrediction.option_price || "N/A"}</p>
-        </div>
-      )}
+        {/* Options Prediction */}
+        {optionsPrediction && optionsPrediction.option_price && (
+          <div style={{ flex: 1, border: "1px solid #ccc", padding: "10px", borderRadius: "5px" }}>
+            <h2>Options Prediction</h2>
+            <p>🔹 Prediction: {optionsPrediction.prediction}</p>
+            <p>🔹 Suggested Action: {optionsPrediction.suggested_action || "N/A"}</p>
+            <p>🔹 Option Price: {optionsPrediction.option_price || "N/A"}</p>
+            <p>🔹 Stop Loss (Option): {optionsPrediction.stop_loss_option || "N/A"}</p>
+            <p>🔹 Expiry: {optionsPrediction.expiry || "N/A"}</p>
+            <p>🔹 Confidence: {optionsPrediction.confidence ? `${optionsPrediction.confidence}%` : "N/A"}</p>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

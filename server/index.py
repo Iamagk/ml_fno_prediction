@@ -8,14 +8,9 @@ from pydantic import BaseModel
 import logging
 import os
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta  # Import datetime
 from scipy.stats import norm
 import math
-
-# Example: Access environment variables
-
-model_path = os.getenv("MODEL_PATH", "models/fno_xgboost_model.json")  # Default value if not set
-
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -23,7 +18,7 @@ app = FastAPI()
 # Enable CORS for frontend integration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://fnopredictionclient.vercel.app/"],  # Add your frontend's URL
+    allow_origins=["http://localhost:3000"],  # Replace with your frontend's origin
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -47,7 +42,7 @@ def home():
     return {"message": "API is running!"}
 
 # Load trained XGBoost model
-model_path = os.getenv("MODEL_PATH", "models/fno_xgboost_model.json")
+model_path = "models/fno_xgboost_model.json"
 
 if not os.path.exists(model_path):
     raise FileNotFoundError(f"Model file not found at {model_path}")
@@ -537,21 +532,29 @@ def predict_with_options(symbol: str):
         strike_price = get_nearest_strike_price(symbol, current_price) or current_price
         logger.info(f"Nearest strike price: {strike_price}")
 
-        # Round strike price and confidence to 3 decimal places
-        strike_price = round(float(strike_price), 3)  # Convert to Python float
-        confidence = round(float(confidence), 3)  # Convert to Python float
+        # Round strike price to the nearest denomination of 50
+        if prediction == 1:  # Call option
+            strike_price = math.ceil(strike_price / 50) * 50  # Round up to the nearest 50
+            option_type = "call"
+        else:  # Put option
+            strike_price = math.floor(strike_price / 50) * 50  # Round down to the nearest 50
+            option_type = "put"
 
-        # Calculate stop loss using technical indicators
+        logger.info(f"Adjusted strike price: {strike_price}")
+
+        # Calculate stop loss for strike price using technical indicators
         atr = feature_data.get('ATR', 0)  # Average True Range
         support_level = feature_data.get('Support', strike_price - atr)
         resistance_level = feature_data.get('Resistance', strike_price + atr)
 
         if prediction == 1:
-            stop_loss = int(support_level)  # Use support level as stop loss for a buy trade
-            option_type = "call"
+            stop_loss_strike = support_level  # Use support level as stop loss for a buy trade
         else:
-            stop_loss = int(resistance_level)  # Use resistance level as stop loss for a sell trade
-            option_type = "put"
+            stop_loss_strike = resistance_level  # Use resistance level as stop loss for a sell trade
+
+        # Round stop loss for strike price to 2 decimal places
+        stop_loss_strike = round(float(stop_loss_strike), 2)
+        logger.info(f"Rounded stop loss for strike price: {stop_loss_strike}")
 
         # Use dynamic expiry date
         expiry_date = get_next_expiry()
@@ -565,13 +568,32 @@ def predict_with_options(symbol: str):
             option_price = None  # Ensure it's explicitly set to None
         else:
             option_price = round(float(option_price), 3)  # Convert to Python float and round to 3 decimal places
+            logger.info(f"Rounded option price: {option_price}")
+
+        # Calculate stop loss for options price
+        if option_price is not None:
+            if prediction == 1:  # Call option
+                stop_loss_option = option_price - atr  # Subtract ATR for call option
+            else:  # Put option
+                stop_loss_option = option_price + atr  # Add ATR for put option
+
+            # Round stop loss for options price to 2 decimal places
+            stop_loss_option = round(float(stop_loss_option), 2)
+            logger.info(f"Rounded stop loss for options price: {stop_loss_option}")
+        else:
+            stop_loss_option = None  # If option price is None, stop loss cannot be calculated
+
+        # Round confidence to 3 decimal places
+        confidence = round(float(confidence), 3)
+        logger.info(f"Rounded confidence: {confidence}")
 
         # Construct the response
         response = {
             "prediction": int(prediction),
             "suggested_action": "Buy Call Option" if prediction == 1 else "Buy Put Option",
             "strike_price": f"{strike_price} CE" if prediction == 1 else f"{strike_price} PE",
-            "stop_loss": stop_loss,
+            "stop_loss_strike": stop_loss_strike,
+            "stop_loss_option": stop_loss_option,
             "expiry": expiry_date,
             "confidence": confidence,
             "option_price": option_price
@@ -585,6 +607,9 @@ def predict_with_options(symbol: str):
         return {"error": "Failed to fetch prediction"}
 
 def estimate_option_price(symbol, current_price, strike_price, expiry_date, option_type):
+    """
+    Estimate the option price using the Black-Scholes model.
+    """
     try:
         # Fetch stock data for volatility calculation
         stock_data = fetch_stock_data(symbol)
@@ -611,9 +636,18 @@ def estimate_option_price(symbol, current_price, strike_price, expiry_date, opti
             logger.error(f"Invalid current price or strike price: current_price={current_price}, strike_price={strike_price}")
             return None
 
+        # Log all inputs for debugging
+        logger.info(f"Inputs for Black-Scholes: current_price={current_price}, strike_price={strike_price}, "
+                    f"sigma={sigma}, T={T}, option_type={option_type}")
+
+        # Risk-free interest rate (assumed)
+        r = 0.05
+
         # Black-Scholes formula
         d1 = (math.log(current_price / strike_price) + (r + 0.5 * sigma ** 2) * T) / (sigma * math.sqrt(T))
         d2 = d1 - sigma * math.sqrt(T)
+
+        logger.info(f"Calculated d1={d1}, d2={d2}")
 
         if option_type == "call":
             option_price = (current_price * norm.cdf(d1)) - (strike_price * math.exp(-r * T) * norm.cdf(d2))
@@ -623,36 +657,13 @@ def estimate_option_price(symbol, current_price, strike_price, expiry_date, opti
             logger.error("Invalid option type")
             return None
 
+        logger.info(f"Calculated option price: {option_price}")
         return round(option_price, 2)
     except Exception as e:
         logger.error(f"Error estimating option price: {e}")
         return None
 
-@app.get("/debug")
-def debug():
-    return {"status": "FastAPI is running!"}
-
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
 
-
-@app.get("/test_internet")
-def test_internet():
-    try:
-        import requests
-        response = requests.get("https://finance.yahoo.com", timeout=5)
-        return {"status": "success", "code": response.status_code}
-    except Exception as e:
-        return {"status": "failed", "error": str(e)}
-    
-@app.get("/test_yfinance")
-def test_yfinance(symbol: str = "TCS.NS"):
-    try:
-        stock = yf.Ticker(symbol)
-        stock_data = stock.history(period="1y")
-        if stock_data.empty:
-            return {"status": "failed", "error": "No data returned"}
-        return {"status": "success", "data": stock_data.to_dict()}
-    except Exception as e:
-        return {"status": "failed", "error": str(e)}
