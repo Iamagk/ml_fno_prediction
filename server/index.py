@@ -650,7 +650,7 @@ def test_internet():
 def test_yfinance(symbol: str = "TCS.NS"):
     try:
         stock = yf.Ticker(symbol)
-        stock_data = stock.history(period="1d")
+        stock_data = stock.history(period="1y")
         if stock_data.empty:
             return {"status": "failed", "error": "No data returned"}
         return {"status": "success", "data": stock_data.to_dict()}
