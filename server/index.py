@@ -560,10 +560,9 @@ def predict_with_options(symbol: str):
         # Estimate option price
         option_price = estimate_option_price(symbol, current_price, strike_price, expiry_date, option_type)
 
-        # Handle NaN or invalid option price
         if option_price is None or np.isnan(option_price):
             logger.error("Option price could not be calculated")
-            option_price = "N/A"
+            option_price = None  # Ensure it's explicitly set to None
         else:
             option_price = round(float(option_price), 3)  # Convert to Python float and round to 3 decimal places
 
@@ -586,9 +585,6 @@ def predict_with_options(symbol: str):
         return {"error": "Failed to fetch prediction"}
 
 def estimate_option_price(symbol, current_price, strike_price, expiry_date, option_type):
-    """
-    Estimate the option price using the Black-Scholes model.
-    """
     try:
         # Fetch stock data for volatility calculation
         stock_data = fetch_stock_data(symbol)
@@ -615,18 +611,9 @@ def estimate_option_price(symbol, current_price, strike_price, expiry_date, opti
             logger.error(f"Invalid current price or strike price: current_price={current_price}, strike_price={strike_price}")
             return None
 
-        # Log all inputs for debugging
-        logger.info(f"Inputs for Black-Scholes: current_price={current_price}, strike_price={strike_price}, "
-                    f"sigma={sigma}, T={T}, option_type={option_type}")
-
-        # Risk-free interest rate (assumed)
-        r = 0.05
-
         # Black-Scholes formula
         d1 = (math.log(current_price / strike_price) + (r + 0.5 * sigma ** 2) * T) / (sigma * math.sqrt(T))
         d2 = d1 - sigma * math.sqrt(T)
-
-        logger.info(f"Calculated d1={d1}, d2={d2}")
 
         if option_type == "call":
             option_price = (current_price * norm.cdf(d1)) - (strike_price * math.exp(-r * T) * norm.cdf(d2))
@@ -636,7 +623,6 @@ def estimate_option_price(symbol, current_price, strike_price, expiry_date, opti
             logger.error("Invalid option type")
             return None
 
-        logger.info(f"Calculated option price: {option_price}")
         return round(option_price, 2)
     except Exception as e:
         logger.error(f"Error estimating option price: {e}")
@@ -651,3 +637,22 @@ if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
 
 
+@app.get("/test_internet")
+def test_internet():
+    try:
+        import requests
+        response = requests.get("https://finance.yahoo.com", timeout=5)
+        return {"status": "success", "code": response.status_code}
+    except Exception as e:
+        return {"status": "failed", "error": str(e)}
+    
+@app.get("/test_yfinance")
+def test_yfinance(symbol: str = "TCS.NS"):
+    try:
+        stock = yf.Ticker(symbol)
+        stock_data = stock.history(period="1d")
+        if stock_data.empty:
+            return {"status": "failed", "error": "No data returned"}
+        return {"status": "success", "data": stock_data.to_dict()}
+    except Exception as e:
+        return {"status": "failed", "error": str(e)}
