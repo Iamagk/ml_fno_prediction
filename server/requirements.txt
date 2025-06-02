@@ -19,3 +19,9 @@ requests==2.31.0
 yfinance==0.2.37
 nsepython==1.0.0
 streamlit
+
+# Core environment tools
+pip>=24.0
+setuptools>=69.0.0
+setuptools-scm
+wheel
