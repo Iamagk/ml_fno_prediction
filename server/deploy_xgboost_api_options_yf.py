@@ -11,6 +11,8 @@ import time
 from datetime import datetime, timedelta  # Import datetime
 from scipy.stats import norm
 import math
+from sklearn.metrics import r2_score
+from sklearn.metrics import make_scorer
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -75,7 +77,7 @@ def fetch_stock_data(symbol):
             try:
                 logger.info(f"Fetching data for {ticker} (Attempt {attempt+1})")
                 stock = yf.Ticker(ticker)
-                stock_data = stock.history(period="1y")  # Fetch 90 days of data
+                stock_data = stock.history(period="3y")  # Fetch 3 years of data
                 stock_data = stock_data.dropna(subset=['Close'])
 
                 if not stock_data.empty:
@@ -494,6 +496,17 @@ def update_trade_history(symbol, prediction, actual_price):
     if len(trade_history) > 100:
         trade_history.pop(0)
 
+def calculate_mape(y_true, y_pred):
+    """
+    Calculate Mean Absolute Percentage Error (MAPE).
+    """
+    y_true, y_pred = np.array(y_true), np.array(y_pred)
+    non_zero_indices = y_true != 0  # Avoid division by zero
+    y_true = y_true[non_zero_indices]
+    y_pred = y_pred[non_zero_indices]
+    mape = np.mean(np.abs((y_true - y_pred) / y_true)) * 100
+    return round(mape, 2)
+
 @app.get("/predict_with_options")
 def predict_with_options(symbol: str):
     try:
@@ -532,21 +545,29 @@ def predict_with_options(symbol: str):
         strike_price = get_nearest_strike_price(symbol, current_price) or current_price
         logger.info(f"Nearest strike price: {strike_price}")
 
-        # Round strike price and confidence to 3 decimal places
-        strike_price = round(float(strike_price), 3)  # Convert to Python float
-        confidence = round(float(confidence), 3)  # Convert to Python float
+        # Round strike price to the nearest denomination of 50
+        if prediction == 1:  # Call option
+            strike_price = math.ceil(strike_price / 50) * 50  # Round up to the nearest 50
+            option_type = "call"
+        else:  # Put option
+            strike_price = math.floor(strike_price / 50) * 50  # Round down to the nearest 50
+            option_type = "put"
 
-        # Calculate stop loss using technical indicators
+        logger.info(f"Adjusted strike price: {strike_price}")
+
+        # Calculate stop loss for strike price using technical indicators
         atr = feature_data.get('ATR', 0)  # Average True Range
         support_level = feature_data.get('Support', strike_price - atr)
         resistance_level = feature_data.get('Resistance', strike_price + atr)
 
         if prediction == 1:
-            stop_loss = int(support_level)  # Use support level as stop loss for a buy trade
-            option_type = "call"
+            stop_loss_strike = support_level  # Use support level as stop loss for a buy trade
         else:
-            stop_loss = int(resistance_level)  # Use resistance level as stop loss for a sell trade
-            option_type = "put"
+            stop_loss_strike = resistance_level  # Use resistance level as stop loss for a sell trade
+
+        # Round stop loss for strike price to 2 decimal places
+        stop_loss_strike = round(float(stop_loss_strike), 2)
+        logger.info(f"Rounded stop loss for strike price: {stop_loss_strike}")
 
         # Use dynamic expiry date
         expiry_date = get_next_expiry()
@@ -555,22 +576,58 @@ def predict_with_options(symbol: str):
         # Estimate option price
         option_price = estimate_option_price(symbol, current_price, strike_price, expiry_date, option_type)
 
-        # Handle NaN or invalid option price
         if option_price is None or np.isnan(option_price):
             logger.error("Option price could not be calculated")
-            option_price = "N/A"
+            option_price = None  # Ensure it's explicitly set to None
         else:
             option_price = round(float(option_price), 3)  # Convert to Python float and round to 3 decimal places
+            logger.info(f"Rounded option price: {option_price}")
+
+        # Calculate stop loss for options price using Support and Resistance Levels
+        if option_price is not None and not np.isnan(option_price):
+            if prediction == 1:  # Call option
+                # Use support level as stop loss for Call Option
+                stop_loss_option = option_price - max((current_price - support_level), 0)
+            else:  # Put option
+                # Use resistance level as stop loss for Put Option
+                stop_loss_option = option_price - max((resistance_level - current_price), 0)
+
+            # Fallback to percentage-based stop loss if the calculated stop loss is invalid
+            if stop_loss_option <= 0:
+                percentage = 0.20  # Set stop loss at 20% below the option price
+                stop_loss_option = option_price * (1 - percentage)
+
+            # Round stop loss for options price to 2 decimal places
+            stop_loss_option = round(float(stop_loss_option), 2)
+            logger.info(f"Final stop loss for options price: {stop_loss_option}")
+        else:
+            logger.warning("Option price is invalid (NaN or None). Cannot calculate stop loss for options.")
+            stop_loss_option = None
+
+        # Round confidence to 3 decimal places
+        confidence = round(float(confidence), 3)
+        logger.info(f"Rounded confidence: {confidence}")
+
+        # Example: Replace these with actual y_true and y_pred values
+        y_true = [100, 200, 300, 400]  # Replace with actual ground truth values
+        y_pred = [110, 190, 290, 410]  # Replace with actual predicted values
+
+        # Calculate R² and MAPE
+        r2 = r2_score(y_true, y_pred)
+        mape = calculate_mape(y_true, y_pred)
 
         # Construct the response
         response = {
             "prediction": int(prediction),
             "suggested_action": "Buy Call Option" if prediction == 1 else "Buy Put Option",
             "strike_price": f"{strike_price} CE" if prediction == 1 else f"{strike_price} PE",
-            "stop_loss": stop_loss,
+            "stop_loss_strike": stop_loss_strike,
+            "stop_loss_option": stop_loss_option,
             "expiry": expiry_date,
             "confidence": confidence,
-            "option_price": option_price
+            "option_price": option_price,
+            "r2": round(r2, 2),
+            "mape": mape
         }
 
         logger.info(f"API Response sent to frontend: {response}")
@@ -640,4 +697,24 @@ def estimate_option_price(symbol, current_price, strike_price, expiry_date, opti
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+y_true = [3, -0.5, 2, 7]
+y_pred = [2.5, 0.0, 2, 8]
+
+r2 = r2_score(y_true, y_pred)
+print(f"R²: {r2}")
+
+def mean_absolute_percentage_error(y_true, y_pred):
+    y_true, y_pred = np.array(y_true), np.array(y_pred)
+    non_zero_indices = y_true != 0
+    y_true = y_true[non_zero_indices]
+    y_pred = y_pred[non_zero_indices]
+    return np.mean(np.abs((y_true - y_pred) / y_true)) * 100
+
+# Example usage
+y_true = [100, 200, 300, 400]
+y_pred = [110, 190, 290, 410]
+
+mape = mean_absolute_percentage_error(y_true, y_pred)
+print(f"MAPE: {mape}%")
 

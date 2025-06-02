@@ -1,4 +1,4 @@
-#!/Users/allenngeorge/Files/Projects/ml_fno_prediction/venv/bin/python3
+#!/Users/allenngeorge/Projects/ml_fno_prediction/server/venv/bin/python3.11
 
 import datetime
 import os

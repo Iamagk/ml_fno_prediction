@@ -142,6 +142,7 @@ const App = () => {
             <p>🔹 Suggested Action: {prediction.suggested_action || "N/A"}</p>
             <p>🔹 Strike Price: {prediction.strike_price || "N/A"}</p>
             <p>🔹 Stop Loss (Strike): {prediction.stop_loss_strike || "N/A"}</p>
+            <p>🔹 Exit Price (Strike): {prediction.exit_price_strike || "N/A"}</p>
             <p>🔹 Expiry: {prediction.expiry || "N/A"}</p>
             <p>🔹 Confidence: {prediction.confidence ? `${prediction.confidence}%` : "N/A"}</p>
           </div>
@@ -155,6 +156,7 @@ const App = () => {
             <p>🔹 Suggested Action: {optionsPrediction.suggested_action || "N/A"}</p>
             <p>🔹 Option Price: {optionsPrediction.option_price || "N/A"}</p>
             <p>🔹 Stop Loss (Option): {optionsPrediction.stop_loss_option || "N/A"}</p>
+            <p>🔹 Exit Price (Option): {optionsPrediction.exit_price_option || "N/A"}</p>
             <p>🔹 Expiry: {optionsPrediction.expiry || "N/A"}</p>
             <p>🔹 Confidence: {optionsPrediction.confidence ? `${optionsPrediction.confidence}%` : "N/A"}</p>
           </div>

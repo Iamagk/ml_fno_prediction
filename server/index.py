@@ -11,6 +11,9 @@ import time
 from datetime import datetime, timedelta  # Import datetime
 from scipy.stats import norm
 import math
+from sklearn.metrics import r2_score
+from sklearn.metrics import make_scorer
+import requests
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -24,17 +27,30 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-def get_next_expiry():
+def get_next_expiry(holidays=None):
+    """
+    Calculate the next expiry date (Thursday) for trading.
+    If Thursday is a holiday, use the previous day (Wednesday).
+    """
     today = datetime.today()
     weekday = today.weekday()  # Monday = 0, Sunday = 6
 
-    # If today is Thursday or after, get next Thursday
-    if weekday >= 3:  
+    # Calculate the next Thursday
+    if weekday >= 3:  # If today is Thursday or later
         days_until_next_expiry = (3 - weekday) + 7  # Move to next Thursday
     else:
         days_until_next_expiry = 3 - weekday  # This week's Thursday
 
     next_expiry = today + timedelta(days=days_until_next_expiry)
+    logger.info(f"Calculated next Thursday: {next_expiry.strftime('%Y-%m-%d')}")
+
+    # Check if the calculated expiry is a holiday
+    if holidays:
+        logger.info(f"Holidays list: {holidays}")
+        if next_expiry.strftime("%Y-%m-%d") in holidays:
+            logger.info(f"{next_expiry.strftime('%Y-%m-%d')} is a holiday. Adjusting to the previous day.")
+            next_expiry -= timedelta(days=1)
+
     return next_expiry.strftime("%Y-%m-%d")
 
 @app.get("/")
@@ -75,8 +91,9 @@ def fetch_stock_data(symbol):
             try:
                 logger.info(f"Fetching data for {ticker} (Attempt {attempt+1})")
                 stock = yf.Ticker(ticker)
-                stock_data = stock.history(period="1y")  # Fetch 90 days of data
+                stock_data = stock.history(period="10y")  # Fetch years of data
                 stock_data = stock_data.dropna(subset=['Close'])
+                
 
                 if not stock_data.empty:
                     logger.info(f"Fetched data for {ticker}:\n{stock_data.tail()}")
@@ -233,8 +250,14 @@ def predict_live(symbol: str):
         else:
             stop_loss = int(resistance_level)  # Use resistance level as stop loss for a sell trade
 
+        # Fetch holidays dynamically
+        api_key = "A1j9Nr72uN9scpcfcLmBJL2wGuOfVPXM"  # Replace with your Calendarific API key
+        holidays = fetch_holidays(api_key, country="IN", year=datetime.now().year)
+        logger.info(f"Fetched holidays: {holidays}")
+
         # Use dynamic expiry date
-        expiry_date = get_next_expiry()
+        expiry_date = get_next_expiry(holidays=holidays)
+        logger.info(f"Calculated expiry date: {expiry_date}")
 
         # Log prediction history
         update_trade_history(symbol, prediction, current_price)
@@ -494,6 +517,17 @@ def update_trade_history(symbol, prediction, actual_price):
     if len(trade_history) > 100:
         trade_history.pop(0)
 
+def calculate_mape(y_true, y_pred):
+    """
+    Calculate Mean Absolute Percentage Error (MAPE).
+    """
+    y_true, y_pred = np.array(y_true), np.array(y_pred)
+    non_zero_indices = y_true != 0  # Avoid division by zero
+    y_true = y_true[non_zero_indices]
+    y_pred = y_pred[non_zero_indices]
+    mape = np.mean(np.abs((y_true - y_pred) / y_true)) * 100
+    return round(mape, 2)
+
 @app.get("/predict_with_options")
 def predict_with_options(symbol: str):
     try:
@@ -542,19 +576,22 @@ def predict_with_options(symbol: str):
 
         logger.info(f"Adjusted strike price: {strike_price}")
 
-        # Calculate stop loss for strike price using technical indicators
+        # Calculate stop loss and exit price for strike price
         atr = feature_data.get('ATR', 0)  # Average True Range
         support_level = feature_data.get('Support', strike_price - atr)
         resistance_level = feature_data.get('Resistance', strike_price + atr)
 
-        if prediction == 1:
+        if prediction == 1:  # Call option
             stop_loss_strike = support_level  # Use support level as stop loss for a buy trade
-        else:
+            exit_price_strike = resistance_level  # Use resistance level as exit price for a buy trade
+        else:  # Put option
             stop_loss_strike = resistance_level  # Use resistance level as stop loss for a sell trade
+            exit_price_strike = support_level  # Use support level as exit price for a sell trade
 
-        # Round stop loss for strike price to 2 decimal places
+        # Round stop loss and exit price for strike price to 2 decimal places
         stop_loss_strike = round(float(stop_loss_strike), 2)
-        logger.info(f"Rounded stop loss for strike price: {stop_loss_strike}")
+        exit_price_strike = round(float(exit_price_strike), 2)
+        logger.info(f"Stop loss for strike price: {stop_loss_strike}, Exit price for strike price: {exit_price_strike}")
 
         # Use dynamic expiry date
         expiry_date = get_next_expiry()
@@ -570,18 +607,28 @@ def predict_with_options(symbol: str):
             option_price = round(float(option_price), 3)  # Convert to Python float and round to 3 decimal places
             logger.info(f"Rounded option price: {option_price}")
 
-        # Calculate stop loss for options price
-        if option_price is not None:
+        # Calculate stop loss and exit price for options price
+        if option_price is not None and not np.isnan(option_price):
             if prediction == 1:  # Call option
-                stop_loss_option = option_price - atr  # Subtract ATR for call option
+                stop_loss_option = option_price - max((current_price - support_level), 0)
+                exit_price_option = option_price + max((resistance_level - current_price), 0)
             else:  # Put option
-                stop_loss_option = option_price + atr  # Add ATR for put option
+                stop_loss_option = option_price - max((resistance_level - current_price), 0)
+                exit_price_option = option_price + max((current_price - support_level), 0)
 
-            # Round stop loss for options price to 2 decimal places
+            # Fallback to percentage-based stop loss if the calculated stop loss is invalid
+            if stop_loss_option <= 0:
+                percentage = 0.20  # Set stop loss at 20% below the option price
+                stop_loss_option = option_price * (1 - percentage)
+
+            # Round stop loss and exit price for options price to 2 decimal places
             stop_loss_option = round(float(stop_loss_option), 2)
-            logger.info(f"Rounded stop loss for options price: {stop_loss_option}")
+            exit_price_option = round(float(exit_price_option), 2)
+            logger.info(f"Stop loss for options price: {stop_loss_option}, Exit price for options price: {exit_price_option}")
         else:
-            stop_loss_option = None  # If option price is None, stop loss cannot be calculated
+            logger.warning("Option price is invalid (NaN or None). Cannot calculate stop loss or exit price for options.")
+            stop_loss_option = None
+            exit_price_option = None
 
         # Round confidence to 3 decimal places
         confidence = round(float(confidence), 3)
@@ -593,7 +640,9 @@ def predict_with_options(symbol: str):
             "suggested_action": "Buy Call Option" if prediction == 1 else "Buy Put Option",
             "strike_price": f"{strike_price} CE" if prediction == 1 else f"{strike_price} PE",
             "stop_loss_strike": stop_loss_strike,
+            "exit_price_strike": exit_price_strike,
             "stop_loss_option": stop_loss_option,
+            "exit_price_option": exit_price_option,
             "expiry": expiry_date,
             "confidence": confidence,
             "option_price": option_price
@@ -663,7 +712,63 @@ def estimate_option_price(symbol, current_price, strike_price, expiry_date, opti
         logger.error(f"Error estimating option price: {e}")
         return None
 
+def fetch_holidays(api_key, country="IN", year=None):
+    """
+    Fetch holidays dynamically using the Calendarific API.
+    """
+    if year is None:
+        year = datetime.now().year  # Default to the current year
+
+    url = "https://calendarific.com/api/v2/holidays"
+    params = {
+        "api_key": api_key,
+        "country": country,
+        "year": year
+    }
+
+    try:
+        response = requests.get(url, params=params)
+        response.raise_for_status()
+        data = response.json()
+
+        # Extract holiday dates
+        holidays = [
+            holiday["date"]["iso"]
+            for holiday in data["response"]["holidays"]
+            if holiday["type"] and "National holiday" in holiday["type"]
+        ]
+        logger.info(f"Fetched holidays for {year}: {holidays}")
+        return holidays
+    except Exception as e:
+        logger.error(f"Error fetching holidays: {e}")
+        return []
+
+# Example usage
+api_key = "A1j9Nr72uN9scpcfcLmBJL2wGuOfVPXM"  # Replace with your API key
+holidays = fetch_holidays(api_key, country="IN", year=2025)
+print(f"Holidays in 2025: {holidays}")
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+y_true = [3, -0.5, 2, 7]
+y_pred = [2.5, 0.0, 2, 8]
+
+r2 = r2_score(y_true, y_pred)
+print(f"R²: {r2}")
+
+def mean_absolute_percentage_error(y_true, y_pred):
+    y_true, y_pred = np.array(y_true), np.array(y_pred)
+    non_zero_indices = y_true != 0
+    y_true = y_true[non_zero_indices]
+    y_pred = y_pred[non_zero_indices]
+    return np.mean(np.abs((y_true - y_pred) / y_true)) * 100
+
+# Example usage
+y_true = [100, 200, 300, 400]
+y_pred = [110, 190, 290, 410]
+
+mape = mean_absolute_percentage_error(y_true, y_pred)
+print(f"MAPE: {mape}%")
 
