@@ -8,8 +8,8 @@ os.makedirs(RAW_DATA_DIR, exist_ok=True)
 
 # Choose a stock or index (e.g., NIFTY 50 = ^NSEI)
 symbol = "^NSEI"  # Change this to any stock (e.g., "RELIANCE.NS" for Reliance)
-start_date = "2023-01-01"  # Adjust the date range as needed
-end_date = "2024-02-27"
+start_date = "2020-01-01"  # Adjust the date range as needed
+end_date = "2025-06-04"
 
 # Fetch data
 print(f"Fetching data for {symbol} from {start_date} to {end_date}...")

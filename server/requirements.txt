@@ -13,10 +13,11 @@ scikit-learn==1.2.2
 # Date/time and requests
 python-dateutil==2.8.2
 pytz==2023.3
-requests==2.31.0
+requests
+tqdm
 
 # Finance-related
-yfinance==0.2.37
+yfinance==0.2.61
 nsepython==1.0.0
 streamlit
 
