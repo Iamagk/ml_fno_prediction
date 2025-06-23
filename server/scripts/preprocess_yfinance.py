@@ -33,20 +33,20 @@ print("🔹 CSV Columns:", df.columns)
 
 # Ensure index is DateTime
 df.index = pd.to_datetime(df.index, errors="coerce")
-df = df.dropna(subset=["Close"])  # Drop invalid rows
+df = df.dropna(subset=["CLOSE"])  # Drop invalid rows
 
 # Drop unnecessary columns
-df.drop(columns=["Adj Close"], inplace=True, errors="ignore")
+df.drop(columns=["ADJ CLOSE"], inplace=True, errors="ignore")  # unlikely to exist, but for consistency
 
 # Add Moving Averages
-df["SMA_5"] = df["Close"].rolling(window=5).mean()  # 5-day moving average
-df["SMA_10"] = df["Close"].rolling(window=10).mean()  # 10-day moving average
+df["SMA_5"] = df["CLOSE"].rolling(window=5).mean()  # 5-day moving average
+df["SMA_10"] = df["CLOSE"].rolling(window=10).mean()  # 10-day moving average
 
 # Add Relative Strength Index (RSI)
-df["RSI_14"] = talib.RSI(df["Close"], timeperiod=14)
+df["RSI_14"] = talib.RSI(df["CLOSE"], timeperiod=14)
 
 # Add Moving Average Convergence Divergence (MACD)
-df["MACD"], df["MACD_Signal"], _ = talib.MACD(df["Close"])
+df["MACD"], df["MACD_Signal"], _ = talib.MACD(df["CLOSE"])
 
 # Drop rows with NaN values (from moving averages & RSI calculations)
 df.dropna(inplace=True)

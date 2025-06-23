@@ -9,12 +9,16 @@ import joblib
 # Load the feature-engineered dataset
 df = pd.read_csv("data/featured/featured_data.csv")
 
+# Print the columns of the dataframe
+print(df.columns)
+
+# Create Target column: 1 if next day's return > 0, else 0
+df['Target'] = (df['Return'].shift(-1) > 0).astype(int)
+df.dropna(inplace=True)
+
 # Define features and target
 features = [col for col in df.columns if col not in ["Price", "Target"]]  # Exclude non-numeric columns
 target = "Target"
-
-# Drop rows with missing values
-df.dropna(inplace=True)
 
 # Split data into training and testing sets
 X_train, X_test, y_train, y_test = train_test_split(
