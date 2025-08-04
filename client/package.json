@@ -7,6 +7,7 @@
     "test": "react-scripts test",
     "start": "react-scripts start",
     "build": "react-scripts build",
+    "vercel-build": "react-scripts build",
     "eject": "react-scripts eject"
   },
   "keywords": [],
