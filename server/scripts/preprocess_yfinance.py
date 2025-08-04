@@ -31,12 +31,15 @@ df = pd.read_csv(latest_file, skiprows=[1], index_col=0)
 # Print the first few rows to check column names
 print("🔹 CSV Columns:", df.columns)
 
+# After reading the CSV
+df.columns = [col.upper().replace(" ", "_") for col in df.columns]
+
 # Ensure index is DateTime
 df.index = pd.to_datetime(df.index, errors="coerce")
-df = df.dropna(subset=["CLOSE"])  # Drop invalid rows
+df = df.dropna(subset=["CLOSE"])
 
 # Drop unnecessary columns
-df.drop(columns=["ADJ CLOSE"], inplace=True, errors="ignore")  # unlikely to exist, but for consistency
+df.drop(columns=["ADJ CLOSE"], inplace=True, errors="ignore")
 
 # Add Moving Averages
 df["SMA_5"] = df["CLOSE"].rolling(window=5).mean()  # 5-day moving average
@@ -46,14 +49,15 @@ df["SMA_10"] = df["CLOSE"].rolling(window=10).mean()  # 10-day moving average
 df["RSI_14"] = talib.RSI(df["CLOSE"], timeperiod=14)
 
 # Add Moving Average Convergence Divergence (MACD)
-df["MACD"], df["MACD_Signal"], _ = talib.MACD(df["CLOSE"])
+df["MACD"], df["MACD_SIGNAL"], _ = talib.MACD(df["CLOSE"])
 
 # Drop rows with NaN values (from moving averages & RSI calculations)
 df.dropna(inplace=True)
 
 # Save processed file
 processed_file = os.path.join(PROCESSED_DATA_DIR, "processed_data.csv")
-df.to_csv(processed_file)
+df.reset_index(inplace=True)
+df.to_csv(processed_file, index=False)
 print(f"✅ Processed data saved to: {processed_file}")
 
 # Show sample processed data

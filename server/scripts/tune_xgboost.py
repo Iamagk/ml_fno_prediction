@@ -6,23 +6,27 @@ from sklearn.metrics import accuracy_score
 
 # Load feature-engineered data
 df = pd.read_csv("data/featured/featured_data.csv")
+df.columns = [col.upper() for col in df.columns]  # Standardize column names
 
 # Ensure required columns exist
-if "Close" not in df.columns:
-    raise ValueError("Column 'Close' is missing from the dataset. Ensure feature engineering is correct.")
+if "CLOSE" not in df.columns:
+    raise ValueError("Column 'CLOSE' is missing from the dataset. Ensure feature engineering is correct.")
 
-# Create 'Return' and 'Target' columns if not present
-df["Return"] = df["Close"].pct_change()
-df["Target"] = (df["Return"] > 0).astype(int)
+# Create 'RETURN' and 'TARGET' columns if not present
+df["RETURN"] = df["CLOSE"].pct_change()
+df["TARGET"] = (df["RETURN"] > 0).astype(int)
 df.dropna(inplace=True)  # Drop NaN rows caused by pct_change()
 
 # Save the updated dataset
 df.to_csv("data/featured/featured_data.csv", index=False)
 
 # Define features and target, ensuring columns exist
-drop_cols = [col for col in ["Price", "Target"] if col in df.columns]
-X = df.drop(columns=drop_cols, errors='ignore')  # Drop only if present
-y = df["Target"]
+drop_cols = [col for col in ["PRICE", "TARGET", "RETURN", "CLOSE", "TIMESTAMP"] if col in df.columns]
+X = df.drop(columns=drop_cols, errors='ignore')
+y = df["TARGET"]
+
+# Drop non-numeric columns
+X = X.select_dtypes(include=[float, int, bool])
 
 # Split data into train & test sets
 X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
@@ -47,5 +51,7 @@ plt.title("XGBoost Feature Importance")
 plt.show()
 
 # Save model
+import os
+os.makedirs("models", exist_ok=True)
 model.save_model("models/fno_xgboost_model.json")
 print("✅ Model saved: models/fno_xgboost_model.json")

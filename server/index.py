@@ -98,7 +98,7 @@ def fetch_stock_data(symbol):
             try:
                 logger.info(f"Fetching data for {ticker} (Attempt {attempt+1})")
                 stock = yf.Ticker(ticker)
-                stock_data = stock.history(period="10y")
+                stock_data = stock.history(period="1y")  # Reduced from 10y to 1y for better performance
                 stock_data = stock_data.dropna(subset=['Close'])  # Ensure 'Close' column is not empty
                 # After fetching stock_data
                 stock_data.columns = [col.upper() for col in stock_data.columns]
@@ -129,6 +129,20 @@ def fetch_stock_data(symbol):
                     stock_data['CMF'] = calculate_cmf(stock_data)
                     stock_data['PSAR'] = calculate_psar(stock_data)
                     stock_data['AROON_UP'], stock_data['AROON_DOWN'] = calculate_aroon(stock_data)
+                    
+                    # Add missing EMA calculations
+                    stock_data['EMA_9'] = stock_data['CLOSE'].ewm(span=9).mean()
+                    stock_data['EMA_21'] = stock_data['CLOSE'].ewm(span=21).mean()
+                    stock_data['EMA_50'] = stock_data['CLOSE'].ewm(span=50).mean()
+                    stock_data['EMA_200'] = stock_data['CLOSE'].ewm(span=200).mean()
+                    
+                    # Add Bollinger Bands
+                    sma_20 = stock_data['CLOSE'].rolling(window=20).mean()
+                    std_20 = stock_data['CLOSE'].rolling(window=20).std()
+                    stock_data['BB_UPPER'] = sma_20 + (std_20 * 2)
+                    stock_data['BB_MIDDLE'] = sma_20
+                    stock_data['BB_LOWER'] = sma_20 - (std_20 * 2)
+                    
                     stock_data['RETURN'] = stock_data['CLOSE'].pct_change() * 100  # Percentage change in closing price
 
                     # Extract the latest row of data
@@ -141,6 +155,11 @@ def fetch_stock_data(symbol):
                         for key in [name, name.upper(), name.lower()]:
                             if key in latest_data and not pd.isnull(latest_data[key]):
                                 return float(latest_data[key])
+                        # For missing trading-specific features, provide default values
+                        if name in ['STRIKE_PR', 'SETTLE_PR']:
+                            return float(latest_data.get('CLOSE', 0))  # Use close price as default
+                        elif name in ['CONTRACTS', 'VAL_INLAKH', 'OPEN_INT', 'CHG_IN_OI']:
+                            return 0.0  # These are futures/options specific
                         return 0.0
 
                     # Build live_data dict using FEATURE_NAMES
