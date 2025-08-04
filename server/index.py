@@ -21,7 +21,12 @@ app = FastAPI()
 # Enable CORS for frontend integration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Replace with your frontend's origin
+    allow_origins=[
+        "http://localhost:3000",  # Local development
+        "https://*.vercel.app",   # Vercel deployments
+        "https://vercel.app",     # Vercel domain
+        "*"  # Allow all origins for production (adjust as needed)
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -68,10 +73,10 @@ model.load_model(model_path)
 
 # Define expected features
 FEATURE_NAMES = [
-    "Close", "High", "Low", "Open", "Volume", "SMA_5", "SMA_10", "RSI_14", "MACD", "MACD_Signal",
-    "EMA_9", "EMA_21", "EMA_50", "EMA_200", "BB_upper", "BB_middle", "BB_lower", "MACD_Hist",
-    "STOCH_K", "STOCH_D", "ATR", "ROC_10", "OBV", "VWAP", "ADX", "CCI", "WILLR_14", "MOM_10",
-    "CMF", "PSAR", "Aroon_Up", "Aroon_Down", "Return"
+    "STRIKE_PR", "OPEN", "HIGH", "LOW", "CLOSE", "SETTLE_PR", "CONTRACTS", "VAL_INLAKH", "OPEN_INT", "CHG_IN_OI",
+    "SMA_5", "SMA_10", "RSI_14", "MACD", "MACD_SIGNAL", "EMA_9", "EMA_21", "EMA_50", "EMA_200",
+    "BB_UPPER", "BB_MIDDLE", "BB_LOWER", "MACD_HIST", "STOCH_K", "STOCH_D", "ATR", "ROC_10", "OBV",
+    "VWAP", "ADX", "CCI", "WILLR_14", "MOM_10", "CMF", "PSAR", "AROON_UP", "AROON_DOWN", "RETURN"
 ]
 
 # Configure logging
@@ -91,9 +96,10 @@ def fetch_stock_data(symbol):
             try:
                 logger.info(f"Fetching data for {ticker} (Attempt {attempt+1})")
                 stock = yf.Ticker(ticker)
-                stock_data = stock.history(period="10y")  # Fetch years of data
-                stock_data = stock_data.dropna(subset=['Close'])
-                
+                stock_data = stock.history(period="10y")
+                stock_data = stock_data.dropna(subset=['Close'])  # Ensure 'Close' column is not empty
+                # After fetching stock_data
+                stock_data.columns = [col.upper() for col in stock_data.columns]
 
                 if not stock_data.empty:
                     logger.info(f"Fetched data for {ticker}:\n{stock_data.tail()}")
@@ -108,8 +114,8 @@ def fetch_stock_data(symbol):
                     stock_data['SMA_5'] = calculate_sma(stock_data, window=5)
                     stock_data['SMA_10'] = calculate_sma(stock_data, window=10)
                     stock_data['RSI_14'] = calculate_rsi(stock_data, period=14)
-                    stock_data['MACD'], stock_data['MACD_Signal'] = calculate_macd(stock_data)
-                    stock_data['MACD_Hist'] = calculate_macd_hist(stock_data)
+                    stock_data['MACD'], stock_data['MACD_SIGNAL'] = calculate_macd(stock_data)
+                    stock_data['MACD_HIST'] = calculate_macd_hist(stock_data)
                     stock_data['STOCH_K'], stock_data['STOCH_D'] = calculate_stochastic(stock_data)
                     stock_data['ROC_10'] = calculate_roc(stock_data)
                     stock_data['OBV'] = calculate_obv(stock_data)
@@ -120,49 +126,24 @@ def fetch_stock_data(symbol):
                     stock_data['MOM_10'] = calculate_momentum(stock_data)
                     stock_data['CMF'] = calculate_cmf(stock_data)
                     stock_data['PSAR'] = calculate_psar(stock_data)
-                    stock_data['Aroon_Up'], stock_data['Aroon_Down'] = calculate_aroon(stock_data)
-                    stock_data['Return'] = stock_data['Close'].pct_change() * 100  # Percentage change in closing price
+                    stock_data['AROON_UP'], stock_data['AROON_DOWN'] = calculate_aroon(stock_data)
+                    stock_data['RETURN'] = stock_data['CLOSE'].pct_change() * 100  # Percentage change in closing price
 
                     # Extract the latest row of data
                     latest_data = stock_data.iloc[-1]
                     logger.info(f"Latest data for {ticker}: {latest_data}")
 
-                    # Fill missing values with default placeholders
-                    live_data = {
-                        "Close": latest_data["Close"],
-                        "High": latest_data["High"],
-                        "Low": latest_data["Low"],
-                        "Open": latest_data["Open"],
-                        "Volume": latest_data["Volume"],
-                        "SMA_5": latest_data["SMA_5"],
-                        "SMA_10": latest_data["SMA_10"],
-                        "RSI_14": latest_data["RSI_14"],
-                        "MACD": latest_data["MACD"],
-                        "MACD_Signal": latest_data["MACD_Signal"],
-                        "ATR": latest_data["ATR"],
-                        "EMA_9": latest_data["Close"],  # Placeholder
-                        "EMA_21": latest_data["Close"],  # Placeholder
-                        "EMA_50": latest_data["Close"],  # Placeholder
-                        "EMA_200": latest_data["Close"],  # Placeholder
-                        "BB_upper": latest_data["Close"],  # Placeholder
-                        "BB_middle": latest_data["Close"],  # Placeholder
-                        "BB_lower": latest_data["Close"],  # Placeholder
-                        "MACD_Hist": latest_data["MACD_Hist"],
-                        "STOCH_K": latest_data["STOCH_K"],
-                        "STOCH_D": latest_data["STOCH_D"],
-                        "ROC_10": latest_data["ROC_10"],
-                        "OBV": latest_data["OBV"],
-                        "VWAP": latest_data["VWAP"],
-                        "ADX": latest_data["ADX"],
-                        "CCI": latest_data["CCI"],
-                        "WILLR_14": latest_data["WILLR_14"],
-                        "MOM_10": latest_data["MOM_10"],
-                        "CMF": latest_data["CMF"],
-                        "PSAR": latest_data["PSAR"],
-                        "Aroon_Up": latest_data["Aroon_Up"],
-                        "Aroon_Down": latest_data["Aroon_Down"],
-                        "Return": latest_data["Return"],  # Use the calculated return
-                    }
+                    # Helper to get value or 0.0 if missing
+                    def get_feature(name):
+                        # Try exact, uppercase, and lowercase
+                        for key in [name, name.upper(), name.lower()]:
+                            if key in latest_data and not pd.isnull(latest_data[key]):
+                                return float(latest_data[key])
+                        return 0.0
+
+                    # Build live_data dict using FEATURE_NAMES
+                    live_data = {feat: get_feature(feat) for feat in FEATURE_NAMES}
+
                     return pd.DataFrame([live_data])
 
                 logger.warning(f"No data found for {ticker}, retrying...")
@@ -223,14 +204,14 @@ def predict_live(symbol: str):
         logger.info(f"Live data fetched for {symbol}: {live_data}")
 
         # Ensure only the expected features are passed
-        feature_data = {col: float(live_data[col].values[0]) for col in FEATURE_NAMES if col in live_data}
-        df = pd.DataFrame([feature_data])
+        df = live_data[FEATURE_NAMES].copy()
+        feature_data = df.iloc[0].to_dict()
 
         # Make prediction
         prediction = model.predict(df)[0]
 
         # Extract current price for calculations
-        current_price = feature_data.get('Close', 0)
+        current_price = feature_data.get('CLOSE', 0)
         if current_price == 0:
             raise ValueError("Current price of the stock is unavailable.")
 
@@ -320,9 +301,9 @@ def get_model_confidence(model, df):
     return round(confidence, 2)
 
 def calculate_atr(data, period=14):
-    high = data['High']
-    low = data['Low']
-    close = data['Close']
+    high = data['HIGH']
+    low = data['LOW']
+    close = data['CLOSE']
     tr1 = high - low
     tr2 = abs(high - close.shift(1))
     tr3 = abs(low - close.shift(1))
@@ -331,10 +312,10 @@ def calculate_atr(data, period=14):
     return atr
 
 def calculate_sma(data, window):
-    return data['Close'].rolling(window=window).mean()
+    return data['CLOSE'].rolling(window=window).mean()
 
 def calculate_rsi(data, period=14):
-    delta = data['Close'].diff()
+    delta = data['CLOSE'].diff()
     gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
     loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
     rs = gain / loss
@@ -342,8 +323,8 @@ def calculate_rsi(data, period=14):
     return rsi
 
 def calculate_macd(data, short_window=12, long_window=26, signal_window=9):
-    short_ema = data['Close'].ewm(span=short_window, adjust=False).mean()
-    long_ema = data['Close'].ewm(span=long_window, adjust=False).mean()
+    short_ema = data['CLOSE'].ewm(span=short_window, adjust=False).mean()
+    long_ema = data['CLOSE'].ewm(span=long_window, adjust=False).mean()
     macd = short_ema - long_ema
     signal = macd.ewm(span=signal_window, adjust=False).mean()
     return macd, signal
@@ -354,28 +335,28 @@ def calculate_macd_hist(data):
     return macd_hist
 
 def calculate_stochastic(data, period=14):
-    low_min = data['Low'].rolling(window=period).min()
-    high_max = data['High'].rolling(window=period).max()
-    stoch_k = 100 * (data['Close'] - low_min) / (high_max - low_min)
+    low_min = data['LOW'].rolling(window=period).min()
+    high_max = data['HIGH'].rolling(window=period).max()
+    stoch_k = 100 * (data['CLOSE'] - low_min) / (high_max - low_min)
     stoch_d = stoch_k.rolling(window=3).mean()  # 3-period moving average of %K
     return stoch_k, stoch_d
 
 def calculate_roc(data, period=10):
-    roc = ((data['Close'] - data['Close'].shift(period)) / data['Close'].shift(period)) * 100
+    roc = ((data['CLOSE'] - data['CLOSE'].shift(period)) / data['CLOSE'].shift(period)) * 100
     return roc
 
 def calculate_obv(data):
-    obv = (np.sign(data['Close'].diff()) * data['Volume']).fillna(0).cumsum()
+    obv = (np.sign(data['CLOSE'].diff()) * data['VOLUME']).fillna(0).cumsum()
     return obv
 
 def calculate_vwap(data):
-    vwap = (data['Close'] * data['Volume']).cumsum() / data['Volume'].cumsum()
+    vwap = (data['CLOSE'] * data['VOLUME']).cumsum() / data['VOLUME'].cumsum()
     return vwap
 
 def calculate_adx(data, period=14):
-    high = data['High']
-    low = data['Low']
-    close = data['Close']
+    high = data['HIGH']
+    low = data['LOW']
+    close = data['CLOSE']
 
     tr1 = high - low
     tr2 = abs(high - close.shift(1))
@@ -400,32 +381,32 @@ def calculate_adx(data, period=14):
     return adx
 
 def calculate_cci(data, period=20):
-    typical_price = (data['High'] + data['Low'] + data['Close']) / 3
+    typical_price = (data['HIGH'] + data['LOW'] + data['CLOSE']) / 3
     sma = typical_price.rolling(window=period).mean()
     mean_deviation = typical_price.rolling(window=period).apply(lambda x: np.mean(np.abs(x - x.mean())), raw=True)
     cci = (typical_price - sma) / (0.015 * mean_deviation)
     return cci
 
 def calculate_willr(data, period=14):
-    high_max = data['High'].rolling(window=period).max()
-    low_min = data['Low'].rolling(window=period).min()
-    willr = -100 * ((high_max - data['Close']) / (high_max - low_min))
+    high_max = data['HIGH'].rolling(window=period).max()
+    low_min = data['LOW'].rolling(window=period).min()
+    willr = -100 * ((high_max - data['CLOSE']) / (high_max - low_min))
     return willr
 
 def calculate_momentum(data, period=10):
-    momentum = data['Close'] - data['Close'].shift(period)
+    momentum = data['CLOSE'] - data['CLOSE'].shift(period)
     return momentum
 
 def calculate_cmf(data, period=20):
-    money_flow_multiplier = ((data['Close'] - data['Low']) - (data['High'] - data['Close'])) / (data['High'] - data['Low'])
-    money_flow_volume = money_flow_multiplier * data['Volume']
-    cmf = money_flow_volume.rolling(window=period).sum() / data['Volume'].rolling(window=period).sum()
+    money_flow_multiplier = ((data['CLOSE'] - data['LOW']) - (data['HIGH'] - data['CLOSE'])) / (data['HIGH'] - data['LOW'])
+    money_flow_volume = money_flow_multiplier * data['VOLUME']
+    cmf = money_flow_volume.rolling(window=period).sum() / data['VOLUME'].rolling(window=period).sum()
     return cmf
 
 def calculate_psar(data, step=0.02, max_step=0.2):
-    high = data['High']
-    low = data['Low']
-    close = data['Close']
+    high = data['HIGH']
+    low = data['LOW']
+    close = data['CLOSE']
 
     psar = close.copy()
     bull = True
@@ -461,8 +442,8 @@ def calculate_psar(data, step=0.02, max_step=0.2):
     return psar
 
 def calculate_aroon(data, period=25):
-    aroon_up = 100 * (period - data['High'].rolling(window=period).apply(lambda x: period - np.argmax(x), raw=True)) / period
-    aroon_down = 100 * (period - data['Low'].rolling(window=period).apply(lambda x: period - np.argmin(x), raw=True)) / period
+    aroon_up = 100 * (period - data['HIGH'].rolling(window=period).apply(lambda x: period - np.argmax(x), raw=True)) / period
+    aroon_down = 100 * (period - data['LOW'].rolling(window=period).apply(lambda x: period - np.argmin(x), raw=True)) / period
     return aroon_up, aroon_down
 
 def calculate_historical_volatility(stock_data, period=30, fallback_volatility=0.2):
@@ -477,7 +458,7 @@ def calculate_historical_volatility(stock_data, period=30, fallback_volatility=0
             return fallback_volatility
 
         # Calculate log returns
-        stock_data['Log_Returns'] = np.log(stock_data['Close'] / stock_data['Close'].shift(1))
+        stock_data['Log_Returns'] = np.log(stock_data['CLOSE'] / stock_data['CLOSE'].shift(1))
         logger.info(f"Log returns for volatility calculation:\n{stock_data['Log_Returns'].tail(period)}")
 
         # Calculate rolling standard deviation of log returns (annualized)
@@ -543,18 +524,17 @@ def predict_with_options(symbol: str):
         logger.info(f"Live data fetched for {symbol}: {live_data}")
 
         # Ensure only the expected features are passed
-        feature_data = {col: float(live_data[col].values[0]) for col in FEATURE_NAMES if col in live_data}
-        df = pd.DataFrame([feature_data])
+        df = live_data[FEATURE_NAMES].copy()
 
         # Log feature data
-        logger.info(f"Feature data for prediction: {feature_data}")
+        logger.info(f"Feature data for prediction: {df}")
 
         # Make prediction
         prediction = model.predict(df)[0]
         logger.info(f"Model prediction: {prediction}")
 
         # Extract current price for calculations
-        current_price = feature_data.get('Close', 0)
+        current_price = df.iloc[0]['CLOSE']
         if current_price == 0:
             raise ValueError("Current price of the stock is unavailable.")
 
@@ -577,9 +557,9 @@ def predict_with_options(symbol: str):
         logger.info(f"Adjusted strike price: {strike_price}")
 
         # Calculate stop loss and exit price for strike price
-        atr = feature_data.get('ATR', 0)  # Average True Range
-        support_level = feature_data.get('Support', strike_price - atr)
-        resistance_level = feature_data.get('Resistance', strike_price + atr)
+        atr = df.iloc[0]['ATR']  # Average True Range
+        support_level = df.iloc[0]['Support'] if 'Support' in df.columns else strike_price - atr
+        resistance_level = df.iloc[0]['Resistance'] if 'Resistance' in df.columns else strike_price + atr
 
         if prediction == 1:  # Call option
             stop_loss_strike = support_level  # Use support level as stop loss for a buy trade

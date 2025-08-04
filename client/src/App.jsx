@@ -4,10 +4,10 @@ import "./index.css";
 import logo from "./symbol.jpg"; // Ensure this is correctly placed in 'src'
 
 const FEATURE_NAMES = [
-  "Close", "High", "Low", "Open", "Volume", "SMA_5", "SMA_10", "RSI_14", "MACD", "MACD_Signal",
-  "EMA_9", "EMA_21", "EMA_50", "EMA_200", "BB_upper", "BB_middle", "BB_lower", "MACD_Hist",
-  "STOCH_K", "STOCH_D", "ATR", "ROC_10", "OBV", "VWAP", "ADX", "CCI", "WILLR_14", "MOM_10",
-  "CMF", "PSAR", "Aroon_Up", "Aroon_Down", "Return"
+  "STRIKE_PR", "OPEN", "HIGH", "LOW","CLOSE", "SETTLE_PR", "CONTRACTS", "VAL_IN_LAKH", "OPEN_INT", "CHG_IN_OI",
+  "SMA_5", "SMA_10", "RSI_14", "MACD", "MACD_SIGNAL", "EMA_9", "EMA_21", "EMA_50", "EMA_200",
+  "BB_UPPER", "BB_MIDDLE", "BB_LOWER", "MACD_HIST", "STOCH_K", "STOCH_D", "ATR", "ROC_10", "OBV",
+  "VWAP", "ADX", "CCI", "WILLR_14", "MOM_10", "CMF", "PSAR", "AROON_UP", "AROON_DOWN", "RETURN"
 ];
 
 const App = () => {
