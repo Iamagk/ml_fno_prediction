@@ -99,7 +99,7 @@ const App = () => {
         <button
           onClick={() => {
             setStockSymbol("^NSEI");
-            handleSearch("^NSEI");
+            fetchYahooFinanceData("^NSEI");
           }}
         >
           NIFTY50
