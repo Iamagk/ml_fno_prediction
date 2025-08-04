@@ -1,3 +1,5 @@
+// Use deployed backend as primary
+// To override for local development, set REACT_APP_API_URL in .env file
 const API_URL = process.env.REACT_APP_API_URL || "https://ml-fno-prediction-server.onrender.com";
 
 export const predictMarket = async (symbol) => {
