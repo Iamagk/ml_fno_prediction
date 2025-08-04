@@ -1,78 +1,295 @@
+/* ====================================
+   F&O PREDICTION DASHBOARD - MODERN CSS
+   Responsive, Professional, User-Friendly
+   ==================================== */
+
+/* CSS Reset & Base Styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+  scroll-behavior: smooth;
+}
+
 body {
-  font-family: 'Poppins', sans-serif;
+  font-family: 'Poppins', 'Inter', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
   background: linear-gradient(135deg, #1e1e2f, #3a3a55);
+  background-attachment: fixed;
   color: #fff;
+  line-height: 1.6;
+  min-height: 100vh;
+  overflow-x: hidden;
   text-align: center;
   padding: 20px;
 }
 
-.container {
-  position: relative;
-  width: 100%;
-  height: 100vh;
-}
+/* ====================================
+   CONTAINER & LAYOUT
+   ==================================== */
 
-.small-logo {
-  width: 100px;  /* Adjust size as needed */
-  height: 100px;
-  margin-right: 5px;  /* Space between logo and text */
-  vertical-align: middle;
-}
 .container {
-  max-width: 900px;
-  margin: auto;
+  max-width: 1200px;
+  margin: 0 auto;
   padding: 20px;
-  background: rgba(0, 0, 0, 0.5);  /* Darker and more opaque */
+  background: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(10px);
   border-radius: 15px;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-}
-h1 {
-  font-size: 28px;
+  min-height: 95vh;
+  margin-top: 20px;
   margin-bottom: 20px;
+  position: relative;
+  overflow: hidden;
 }
 
-.search-container {
+.container::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, #ff8c00, transparent);
+  opacity: 0.6;
+}
+
+/* ====================================
+   HEADER & TITLE
+   ==================================== */
+
+.title-container {
   display: flex;
-  justify-content: center;
   align-items: center;
+  justify-content: center;
+  margin-bottom: 40px;
+  padding: 20px 0;
+  gap: 16px;
+  position: relative;
+}
+
+.small-logo {
+  width: 100px;
+  height: 100px;
+  border-radius: 16px;
+  object-fit: cover;
+  box-shadow: 0 8px 32px rgba(255, 140, 0, 0.3);
+  border: 2px solid rgba(255, 140, 0, 0.2);
+  transition: all 0.3s ease;
+  margin-right: 5px;
+  vertical-align: middle;
+}
+
+.small-logo:hover {
+  transform: scale(1.05);
+  box-shadow: 0 12px 40px rgba(255, 140, 0, 0.5);
+}
+
+h1 {
+  font-size: clamp(24px, 4vw, 36px);
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -0.025em;
   margin-bottom: 20px;
 }
 
-.search-container input {
-  width: 60%;
-  padding: 10px;
+/* ====================================
+   STOCK SELECTOR
+   ==================================== */
+
+.stock-selector {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 32px;
+  padding: 24px;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 140, 0, 0.2);
+}
+
+.stock-selector input {
+  flex: 1;
+  min-width: 200px;
+  padding: 12px 16px;
   font-size: 16px;
-  border-radius: 8px;
   border: none;
-  outline: none;
+  border-radius: 8px;
   background: rgba(255, 255, 255, 0.2);
   color: white;
+  outline: none;
+  transition: all 0.3s ease;
+  font-weight: 500;
   text-align: center;
 }
 
-.search-container button {
-  margin-left: 10px;
-  padding: 10px 15px;
-  font-size: 16px;
-  border: none;
-  border-radius: 8px;
-  background: #ff8c00;
-  color: white;
-  cursor: pointer;
-  transition: 0.3s;
+.stock-selector input:focus {
+  background: rgba(255, 255, 255, 0.3);
+  box-shadow: 0 0 0 3px rgba(255, 140, 0, 0.3);
 }
 
-.search-container button:hover {
+.stock-selector input::placeholder {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.stock-selector select {
+  padding: 12px 16px;
+  font-size: 14px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.2);
+  color: white;
+  outline: none;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  min-width: 150px;
+}
+
+.stock-selector select:focus {
+  background: rgba(255, 255, 255, 0.3);
+  box-shadow: 0 0 0 3px rgba(255, 140, 0, 0.3);
+}
+
+/* ====================================
+   BUTTONS
+   ==================================== */
+
+button {
+  padding: 12px 24px;
+  font-size: 16px;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  outline: none;
+  position: relative;
+  overflow: hidden;
+  text-transform: capitalize;
+  letter-spacing: 0.025em;
+  background: #ff8c00;
+  color: white;
+  margin: 5px;
+}
+
+button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s;
+}
+
+button:hover::before {
+  left: 100%;
+}
+
+button:hover {
+  background: #ff6700;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(255, 140, 0, 0.4);
+}
+
+button:active {
+  transform: translateY(0);
+}
+
+/* All buttons use the same gold color scheme */
+.stock-selector button,
+.container > button {
+  background: #ff8c00;
+  color: white;
+}
+
+.stock-selector button:hover,
+.container > button:hover {
   background: #ff6700;
 }
 
+/* ====================================
+   CURRENT DATA & TECHNICAL INDICATORS SECTIONS
+   ==================================== */
+
+.current-data-section,
+.technical-indicators-section {
+  margin: 32px 0;
+}
+
+.current-data-header,
+.technical-indicators-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  cursor: pointer;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.4);
+  border-radius: 10px;
+  border: 1px solid rgba(255, 140, 0, 0.3);
+  transition: all 0.3s ease;
+}
+
+.current-data-header:hover,
+.technical-indicators-header:hover {
+  background: rgba(0, 0, 0, 0.5);
+  border-color: rgba(255, 140, 0, 0.5);
+}
+
+.current-data-title,
+.technical-indicators-title {
+  font-size: 20px;
+  font-weight: 600;
+  color: #ff8c00;
+  margin: 0;
+}
+
+.collapse-icon {
+  font-size: 18px;
+  color: #ff8c00;
+  transition: transform 0.3s ease;
+}
+
+.collapse-icon.expanded {
+  transform: rotate(180deg);
+}
+
+.current-data-content,
+.technical-indicators-content {
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.current-data-content.collapsed,
+.technical-indicators-content.collapsed {
+  max-height: 0;
+  opacity: 0;
+}
+
+.current-data-content.expanded,
+.technical-indicators-content.expanded {
+  max-height: 2000px;
+  opacity: 1;
+}
+
+/* ====================================
+   FORM CONTAINER
+   ==================================== */
+
 .form-container {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 15px;
   margin: 20px 0;
-  background: rgba(0, 0, 0, 0.3); /* Ensure clear contrast */
+  background: rgba(0, 0, 0, 0.3);
   padding: 15px;
   border-radius: 10px;
 }
@@ -80,41 +297,103 @@ h1 {
 .input-group {
   display: flex;
   flex-direction: column;
-  background: rgba(0, 0, 0, 0.4); /* More solid background */
+  background: rgba(0, 0, 0, 0.4);
   padding: 15px;
   border-radius: 10px;
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.input-group:hover {
+  background: rgba(0, 0, 0, 0.5);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
 }
 
 .input-group label {
   font-size: 14px;
+  font-weight: 600;
   margin-bottom: 5px;
+  color: rgba(255, 255, 255, 0.8);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .input-group input {
   padding: 10px;
   font-size: 16px;
-  border-radius: 8px;
   border: none;
-  outline: none;
+  border-radius: 8px;
   background: rgba(255, 255, 255, 0.2);
   color: white;
+  outline: none;
+  transition: all 0.3s ease;
   text-align: center;
+  font-weight: 500;
 }
 
-button {
-  padding: 12px 20px;
-  font-size: 18px;
-  border-radius: 8px;
-  border: none;
-  cursor: pointer;
-  background: #007bff;
-  color: white;
-  transition: 0.3s;
+.input-group input:focus {
+  background: rgba(255, 255, 255, 0.3);
+  box-shadow: 0 0 0 3px rgba(255, 140, 0, 0.3);
 }
 
-button:hover {
-  background: #0056b3;
+/* ====================================
+   PREDICTION RESULTS
+   ==================================== */
+
+.prediction-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 20px;
+  margin-top: 32px;
+  justify-content: center;
+}
+
+.prediction-container > div {
+  flex: 1;
+  min-width: 300px;
+  max-width: 500px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 140, 0, 0.3);
+  border-radius: 10px;
+  padding: 24px;
+  backdrop-filter: blur(10px);
+  transition: all 0.3s ease;
+}
+
+.prediction-container > div:hover {
+  border-color: rgba(255, 140, 0, 0.5);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+  transform: translateY(-4px);
+}
+
+.prediction-container h2 {
+  font-size: 20px;
+  font-weight: 700;
+  margin-bottom: 20px;
+  color: #ff8c00;
+  border-bottom: 2px solid rgba(255, 140, 0, 0.3);
+  padding-bottom: 12px;
+}
+
+.prediction-container p {
+  margin-bottom: 12px;
+  font-size: 15px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.prediction-container p:last-child {
+  border-bottom: none;
+}
+
+.prediction-container p strong,
+.prediction-container p span {
+  font-weight: 600;
 }
 
 .result {
@@ -124,4 +403,220 @@ button:hover {
   padding: 15px;
   background: rgba(255, 255, 255, 0.2);
   border-radius: 10px;
+}
+
+/* ====================================
+   RESPONSIVE DESIGN
+   ==================================== */
+
+/* Tablet Styles */
+@media (max-width: 768px) {
+  .container {
+    margin: 10px;
+    padding: 16px;
+    border-radius: 16px;
+  }
+  
+  .title-container {
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+  
+  .small-logo {
+    width: 80px;
+    height: 80px;
+  }
+  
+  h1 {
+    font-size: 24px;
+    text-align: center;
+  }
+  
+  .stock-selector {
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+  }
+  
+  .stock-selector input {
+    min-width: 100%;
+  }
+  
+  .form-container {
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 12px;
+    padding: 16px;
+  }
+  
+  .input-group {
+    padding: 16px;
+  }
+  
+  .prediction-container {
+    flex-direction: column;
+    gap: 16px;
+  }
+  
+  .prediction-container > div {
+    min-width: 100%;
+  }
+  
+  .current-data-title,
+  .technical-indicators-title {
+    font-size: 18px;
+  }
+}
+
+/* Mobile Styles */
+@media (max-width: 480px) {
+  body {
+    padding: 5px;
+  }
+  
+  .container {
+    margin: 5px;
+    padding: 12px;
+    min-height: calc(100vh - 10px);
+  }
+  
+  .title-container {
+    margin-bottom: 20px;
+    padding: 10px 0;
+  }
+  
+  .small-logo {
+    width: 60px;
+    height: 60px;
+  }
+  
+  h1 {
+    font-size: 20px;
+  }
+  
+  .stock-selector {
+    padding: 12px;
+  }
+  
+  .stock-selector input,
+  .stock-selector select,
+  button {
+    width: 100%;
+    margin-bottom: 8px;
+  }
+  
+  .form-container {
+    grid-template-columns: 1fr;
+    padding: 12px;
+    gap: 8px;
+  }
+  
+  .input-group {
+    padding: 12px;
+  }
+  
+  .prediction-container > div {
+    padding: 16px;
+  }
+  
+  .prediction-container p {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+  
+  .current-data-title,
+  .technical-indicators-title {
+    font-size: 16px;
+  }
+  
+  .current-data-header,
+  .technical-indicators-header {
+    padding: 12px;
+  }
+}
+
+/* ====================================
+   ACCESSIBILITY & FOCUS STATES
+   ==================================== */
+
+/* Focus outline for keyboard navigation */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid #ff8c00;
+  outline-offset: 2px;
+}
+
+/* Reduced motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* High contrast mode support */
+@media (prefers-contrast: high) {
+  .container {
+    border: 2px solid #ffffff;
+  }
+  
+  button {
+    border: 2px solid #ffffff;
+  }
+  
+  input, select {
+    border: 2px solid #ffffff;
+  }
+}
+
+/* ====================================
+   LOADING & INTERACTIVE STATES
+   ==================================== */
+
+.loading {
+  opacity: 0.7;
+  pointer-events: none;
+  cursor: not-allowed;
+}
+
+.loading::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 20px;
+  height: 20px;
+  margin: -10px 0 0 -10px;
+  border: 2px solid transparent;
+  border-top-color: #ff8c00;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* ====================================
+   UTILITY CLASSES
+   ==================================== */
+
+.text-center { text-align: center; }
+.mt-4 { margin-top: 1rem; }
+.mb-4 { margin-bottom: 1rem; }
+.p-4 { padding: 1rem; }
+
+/* Success/Error states */
+.success {
+  border-color: #10b981 !important;
+  background: rgba(16, 185, 129, 0.1) !important;
+}
+
+.error {
+  border-color: #ef4444 !important;
+  background: rgba(239, 68, 68, 0.1) !important;
 }

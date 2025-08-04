@@ -17,6 +17,12 @@ const App = () => {
   const [stockSymbol, setStockSymbol] = useState("");
   const [searchHistory, setSearchHistory] = useState([]);
   const [optionsPrediction, setOptionsPrediction] = useState(null);
+  const [isIndicatorsExpanded, setIsIndicatorsExpanded] = useState(false);
+  const [isCurrentDataExpanded, setIsCurrentDataExpanded] = useState(true); // Start expanded for current data
+
+  // Separate basic and technical indicator features
+  const basicFeatures = FEATURE_NAMES.slice(0, 10); // First 10 are basic market data
+  const technicalIndicators = FEATURE_NAMES.slice(10); // Rest are technical indicators
 
   const handleChange = (index, value) => {
     const newFeatures = [...features];
@@ -117,49 +123,109 @@ const App = () => {
         )}
       </div>
 
-      <div className="form-container">
-        {FEATURE_NAMES.map((name, index) => (
-          <div key={index} className="input-group">
-            <label>{name}</label>
-            <input
-              type="number"
-              value={features[index]}
-              onChange={(e) => handleChange(index, e.target.value)}
-            />
+      {/* Current Data Section - Collapsible */}
+      <div className="current-data-section">
+        <div 
+          className="current-data-header" 
+          onClick={() => setIsCurrentDataExpanded(!isCurrentDataExpanded)}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              setIsCurrentDataExpanded(!isCurrentDataExpanded);
+            }
+          }}
+        >
+          <h3 className="current-data-title">Current Data</h3>
+          <span className={`collapse-icon ${isCurrentDataExpanded ? 'expanded' : ''}`}>
+            ▼
+          </span>
+        </div>
+        
+        <div className={`current-data-content ${isCurrentDataExpanded ? 'expanded' : 'collapsed'}`}>
+          <div className="form-container">
+            {basicFeatures.map((name, index) => (
+              <div key={index} className="input-group">
+                <label>{name}</label>
+                <input
+                  type="number"
+                  value={features[index]}
+                  onChange={(e) => handleChange(index, e.target.value)}
+                />
+              </div>
+            ))}
           </div>
-        ))}
+        </div>
+      </div>
+
+      {/* Technical Indicators Section - Collapsible */}
+      <div className="technical-indicators-section">
+        <div 
+          className="technical-indicators-header" 
+          onClick={() => setIsIndicatorsExpanded(!isIndicatorsExpanded)}
+          role="button"
+          tabIndex={0}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              setIsIndicatorsExpanded(!isIndicatorsExpanded);
+            }
+          }}
+        >
+          <h3 className="technical-indicators-title">Technical Indicators</h3>
+          <span className={`collapse-icon ${isIndicatorsExpanded ? 'expanded' : ''}`}>
+            ▼
+          </span>
+        </div>
+        
+        <div className={`technical-indicators-content ${isIndicatorsExpanded ? 'expanded' : 'collapsed'}`}>
+          <div className="form-container">
+            {technicalIndicators.map((name, index) => {
+              const actualIndex = index + basicFeatures.length; // Adjust index for full features array
+              return (
+                <div key={actualIndex} className="input-group">
+                  <label>{name}</label>
+                  <input
+                    type="number"
+                    value={features[actualIndex]}
+                    onChange={(e) => handleChange(actualIndex, e.target.value)}
+                  />
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
 
       <button onClick={handlePredict}>Predict</button>
       <button onClick={handlePredictLive}>Predict Live</button>
 
       {/* Prediction and Options Prediction Side by Side */}
-      <div style={{ display: "flex", justifyContent: "space-between", gap: "20px" }}>
+      <div className="prediction-container">
         {/* Prediction Summary */}
         {prediction && (
-          <div style={{ flex: 1, border: "1px solid #ccc", padding: "10px", borderRadius: "5px" }}>
+          <div>
             <h2>Prediction Summary</h2>
-            <p>🔹 Prediction: {prediction.prediction}</p>
-            <p>🔹 Suggested Action: {prediction.suggested_action || "N/A"}</p>
-            <p>🔹 Strike Price: {prediction.strike_price || "N/A"}</p>
-            <p>🔹 Stop Loss (Strike): {prediction.stop_loss_strike || "N/A"}</p>
-            <p>🔹 Exit Price (Strike): {prediction.exit_price_strike || "N/A"}</p>
-            <p>🔹 Expiry: {prediction.expiry || "N/A"}</p>
-            <p>🔹 Confidence: {prediction.confidence ? `${prediction.confidence}%` : "N/A"}</p>
+            <p><span>🔹 Prediction:</span> <strong>{prediction.prediction}</strong></p>
+            <p><span>🔹 Suggested Action:</span> <strong>{prediction.suggested_action || "N/A"}</strong></p>
+            <p><span>🔹 Strike Price:</span> <strong>{prediction.strike_price || "N/A"}</strong></p>
+            <p><span>🔹 Stop Loss (Strike):</span> <strong>{prediction.stop_loss_strike || "N/A"}</strong></p>
+            <p><span>🔹 Exit Price (Strike):</span> <strong>{prediction.exit_price_strike || "N/A"}</strong></p>
+            <p><span>🔹 Expiry:</span> <strong>{prediction.expiry || "N/A"}</strong></p>
+            <p><span>🔹 Confidence:</span> <strong>{prediction.confidence ? `${prediction.confidence}%` : "N/A"}</strong></p>
           </div>
         )}
 
         {/* Options Prediction */}
         {optionsPrediction && optionsPrediction.option_price && (
-          <div style={{ flex: 1, border: "1px solid #ccc", padding: "10px", borderRadius: "5px" }}>
+          <div>
             <h2>Options Prediction</h2>
-            <p>🔹 Prediction: {optionsPrediction.prediction}</p>
-            <p>🔹 Suggested Action: {optionsPrediction.suggested_action || "N/A"}</p>
-            <p>🔹 Option Price: {optionsPrediction.option_price || "N/A"}</p>
-            <p>🔹 Stop Loss (Option): {optionsPrediction.stop_loss_option || "N/A"}</p>
-            <p>🔹 Exit Price (Option): {optionsPrediction.exit_price_option || "N/A"}</p>
-            <p>🔹 Expiry: {optionsPrediction.expiry || "N/A"}</p>
-            <p>🔹 Confidence: {optionsPrediction.confidence ? `${optionsPrediction.confidence}%` : "N/A"}</p>
+            <p><span>🔹 Prediction:</span> <strong>{optionsPrediction.prediction}</strong></p>
+            <p><span>🔹 Suggested Action:</span> <strong>{optionsPrediction.suggested_action || "N/A"}</strong></p>
+            <p><span>🔹 Option Price:</span> <strong>{optionsPrediction.option_price || "N/A"}</strong></p>
+            <p><span>🔹 Stop Loss (Option):</span> <strong>{optionsPrediction.stop_loss_option || "N/A"}</strong></p>
+            <p><span>🔹 Exit Price (Option):</span> <strong>{optionsPrediction.exit_price_option || "N/A"}</strong></p>
+            <p><span>🔹 Expiry:</span> <strong>{optionsPrediction.expiry || "N/A"}</strong></p>
+            <p><span>🔹 Confidence:</span> <strong>{optionsPrediction.confidence ? `${optionsPrediction.confidence}%` : "N/A"}</strong></p>
           </div>
         )}
       </div>
