@@ -1,11 +1,11 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import VercelTestApp from "./VercelTestApp.jsx"; // Vercel deployment test
+import App from "./App.jsx"; // Your real F&O prediction app
 import "./index.css";
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(
   <React.StrictMode>
-    <VercelTestApp />
+    <App />
   </React.StrictMode>
 );
