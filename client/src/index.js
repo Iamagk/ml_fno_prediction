@@ -1,6 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import App from "./App.jsx"; // Back to your real app
+import VercelTestApp from "./VercelTestApp.jsx"; // Vercel deployment test
 import "./index.css";
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
