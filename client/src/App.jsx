@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { predictMarket } from "./api";
+import config from "./config";
 import "./index.css";
 import logo from "./symbol.jpg"; // Ensure this is correctly placed in 'src'
 
@@ -37,7 +38,7 @@ const App = () => {
 
   const fetchYahooFinanceData = async (symbol) => {
     try {
-      const response = await fetch(`http://127.0.0.1:8000/fetch_yfinance?symbol=${symbol}`);
+      const response = await fetch(`${config.API_URL}/fetch_yfinance?symbol=${symbol}`);
       const data = await response.json();
       console.log("Fetched Data for:", symbol, data);
       if (data.error) {
@@ -60,7 +61,7 @@ const App = () => {
 
   const handlePredictLive = async () => {
     try {
-      const response = await fetch(`http://127.0.0.1:8000/predict_with_options?symbol=${stockSymbol}`);
+      const response = await fetch(`${config.API_URL}/predict_with_options?symbol=${stockSymbol}`);
       const data = await response.json();
       console.log("API Response for predict_with_options:", data); // Log the response
 
