@@ -1,6 +1,11 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import MinimalApp from "./MinimalApp.jsx"; // Most basic test possible
+import App from "./App.jsx"; // Back to your real app
+import "./index.css";
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
-root.render(React.createElement(MinimalApp));
+root.render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
