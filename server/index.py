@@ -85,9 +85,11 @@ logger = logging.getLogger(__name__)
 
 # Function to fetch stock data with retries
 def fetch_stock_data(symbol):
-    # Ensure NIFTY50 is fetched directly without suffix
-    if symbol.upper() == "^NSEI":
-        possible_symbols = [symbol]
+    # Handle NIFTY symbol mapping
+    if symbol.upper() in ["NIFTY", "NIFTY50", "NIFTY 50"]:
+        possible_symbols = ["^NSEI"]  # Direct NIFTY 50 symbol
+    elif symbol.upper() == "^NSEI":
+        possible_symbols = [symbol]  # Already correct
     else:
         possible_symbols = [f"{symbol}.NS", f"{symbol}.BO", symbol]  # NSE, BSE, and direct symbol
 
