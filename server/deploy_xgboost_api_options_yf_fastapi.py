@@ -14,6 +14,7 @@ import math
 from sklearn.metrics import r2_score
 from sklearn.metrics import make_scorer
 import requests
+from option_pricing_ensemble import OptionPricingEnsemble, calculate_implied_volatility
 
 # Initialize FastAPI app
 app = FastAPI()
@@ -597,15 +598,26 @@ def predict_with_options(symbol: str):
         expiry_date = get_next_expiry()
         logger.info(f"Expiry date: {expiry_date}")
 
-        # Estimate option price
-        option_price = estimate_option_price(symbol, current_price, strike_price, expiry_date, option_type)
-
-        if option_price is None or np.isnan(option_price):
-            logger.error("Option price could not be calculated")
-            option_price = None  # Ensure it's explicitly set to None
+        # Enhanced Option Pricing with Ensemble
+        option_result = estimate_option_price_ensemble(symbol, current_price, strike_price, expiry_date, option_type)
+        
+        if option_result is None:
+            logger.error("Ensemble option price could not be calculated")
+            option_price = None
+            pricing_details = {}
+            greeks = {}
         else:
-            option_price = round(float(option_price), 3)  # Convert to Python float and round to 3 decimal places
-            logger.info(f"Rounded option price: {option_price}")
+            option_price = round(float(option_result['option_price']), 3)
+            pricing_details = {
+                'individual_prices': option_result['pricing_models'],
+                'model_weights': option_result['model_weights'],
+                'agreement_score': round(option_result['agreement_score'], 3),
+                'confidence': round(option_result['confidence'], 3),
+                'volatility': option_result['volatility'],
+                'moneyness': option_result['moneyness']
+            }
+            greeks = {k: round(v, 4) for k, v in option_result['greeks'].items()}
+            logger.info(f"Ensemble option price: {option_price}, Details: {pricing_details}")
 
         # Calculate stop loss and exit price for options price
         if option_price is not None and not np.isnan(option_price):
@@ -634,7 +646,7 @@ def predict_with_options(symbol: str):
         confidence = round(float(confidence), 3)
         logger.info(f"Rounded confidence: {confidence}")
 
-        # Construct the response
+        # Construct the enhanced response
         response = {
             "prediction": int(prediction),
             "suggested_action": "Buy Call Option" if prediction == 1 else "Buy Put Option",
@@ -645,7 +657,9 @@ def predict_with_options(symbol: str):
             "exit_price_option": exit_price_option,
             "expiry": expiry_date,
             "confidence": confidence,
-            "option_price": option_price
+            "option_price": option_price,
+            "pricing_ensemble": pricing_details if 'pricing_details' in locals() else {},
+            "greeks": greeks if 'greeks' in locals() else {}
         }
 
         logger.info(f"API Response sent to frontend: {response}")
@@ -655,9 +669,9 @@ def predict_with_options(symbol: str):
         logger.error(f"Error in /predict_with_options: {str(e)}")
         return {"error": "Failed to fetch prediction"}
 
-def estimate_option_price(symbol, current_price, strike_price, expiry_date, option_type):
+def estimate_option_price_ensemble(symbol, current_price, strike_price, expiry_date, option_type):
     """
-    Estimate the option price using the Black-Scholes model.
+    Estimate option price using ensemble of Black-Scholes and Binary Tree models
     """
     try:
         # Fetch stock data for volatility calculation
@@ -686,30 +700,68 @@ def estimate_option_price(symbol, current_price, strike_price, expiry_date, opti
             return None
 
         # Log all inputs for debugging
-        logger.info(f"Inputs for Black-Scholes: current_price={current_price}, strike_price={strike_price}, "
+        logger.info(f"Inputs for Ensemble Option Pricing: current_price={current_price}, strike_price={strike_price}, "
                     f"sigma={sigma}, T={T}, option_type={option_type}")
 
         # Risk-free interest rate (assumed)
         r = 0.05
 
-        # Black-Scholes formula
-        d1 = (math.log(current_price / strike_price) + (r + 0.5 * sigma ** 2) * T) / (sigma * math.sqrt(T))
-        d2 = d1 - sigma * math.sqrt(T)
-
-        logger.info(f"Calculated d1={d1}, d2={d2}")
-
-        if option_type == "call":
-            option_price = (current_price * norm.cdf(d1)) - (strike_price * math.exp(-r * T) * norm.cdf(d2))
-        elif option_type == "put":
-            option_price = (strike_price * math.exp(-r * T) * norm.cdf(-d2)) - (current_price * norm.cdf(-d1))
-        else:
-            logger.error("Invalid option type")
+        # Initialize ensemble pricing model
+        pricing_ensemble = OptionPricingEnsemble(risk_free_rate=r)
+        
+        # Calculate ensemble option price
+        ensemble_result = pricing_ensemble.ensemble_price(
+            S=current_price,
+            K=strike_price,
+            T=T,
+            r=r,
+            sigma=sigma,
+            option_type=option_type,
+            include_monte_carlo=True  # Include Monte Carlo for better accuracy
+        )
+        
+        if ensemble_result is None:
+            logger.error("Failed to calculate ensemble option price")
             return None
-
-        logger.info(f"Calculated option price: {option_price}")
-        return round(option_price, 2)
+        
+        # Calculate Greeks for additional insights
+        greeks = pricing_ensemble.get_greeks(current_price, strike_price, T, r, sigma, option_type)
+        
+        # Prepare comprehensive result
+        result = {
+            'option_price': ensemble_result['ensemble_price'],
+            'pricing_models': ensemble_result['individual_prices'],
+            'model_weights': ensemble_result['model_weights'],
+            'agreement_score': ensemble_result['agreement_score'],
+            'confidence': ensemble_result['confidence'],
+            'greeks': greeks,
+            'volatility': round(sigma * 100, 2),  # Convert to percentage
+            'time_to_expiry_days': (expiry - today).days,
+            'moneyness': round(current_price / strike_price, 3)
+        }
+        
+        logger.info(f"Ensemble option pricing result: {result}")
+        return result
+        
     except Exception as e:
-        logger.error(f"Error estimating option price: {e}")
+        logger.error(f"Error in ensemble option pricing: {e}")
+        return None
+
+def estimate_option_price(symbol, current_price, strike_price, expiry_date, option_type):
+    """
+    Legacy Black-Scholes option pricing (kept for backward compatibility)
+    """
+    try:
+        # Use ensemble pricing but return only the final price for backward compatibility
+        ensemble_result = estimate_option_price_ensemble(symbol, current_price, strike_price, expiry_date, option_type)
+        
+        if ensemble_result is None:
+            return None
+            
+        return ensemble_result['option_price']
+        
+    except Exception as e:
+        logger.error(f"Error in legacy option pricing: {e}")
         return None
 
 def fetch_holidays(api_key, country="IN", year=None):
