@@ -216,16 +216,40 @@ const App = () => {
         )}
 
         {/* Options Prediction */}
-        {optionsPrediction && optionsPrediction.option_price && (
+        {optionsPrediction && (
           <div>
             <h2>Options Prediction</h2>
             <p><span>🔹 Prediction:</span> <strong>{optionsPrediction.prediction}</strong></p>
             <p><span>🔹 Suggested Action:</span> <strong>{optionsPrediction.suggested_action || "N/A"}</strong></p>
-            <p><span>🔹 Option Price:</span> <strong>{optionsPrediction.option_price || "N/A"}</strong></p>
-            <p><span>🔹 Stop Loss (Option):</span> <strong>{optionsPrediction.stop_loss_option || "N/A"}</strong></p>
-            <p><span>🔹 Exit Price (Option):</span> <strong>{optionsPrediction.exit_price_option || "N/A"}</strong></p>
+            <p><span>🔹 Strike Price:</span> <strong>{optionsPrediction.strike_price || "N/A"}</strong></p>
+            <p><span>🔹 Option Price:</span> <strong>{optionsPrediction.option_price ? `₹${optionsPrediction.option_price}` : "Calculating..."}</strong></p>
+            <p><span>🔹 Stop Loss (Option):</span> <strong>{optionsPrediction.stop_loss_option ? `₹${optionsPrediction.stop_loss_option}` : "N/A"}</strong></p>
+            <p><span>🔹 Exit Price (Option):</span> <strong>{optionsPrediction.exit_price_option ? `₹${optionsPrediction.exit_price_option}` : "N/A"}</strong></p>
+            <p><span>🔹 Stop Loss (Strike):</span> <strong>{optionsPrediction.stop_loss_strike ? `₹${optionsPrediction.stop_loss_strike}` : "N/A"}</strong></p>
+            <p><span>🔹 Exit Price (Strike):</span> <strong>{optionsPrediction.exit_price_strike ? `₹${optionsPrediction.exit_price_strike}` : "N/A"}</strong></p>
             <p><span>🔹 Expiry:</span> <strong>{optionsPrediction.expiry || "N/A"}</strong></p>
             <p><span>🔹 Confidence:</span> <strong>{optionsPrediction.confidence ? `${optionsPrediction.confidence}%` : "N/A"}</strong></p>
+            
+            {/* Show ensemble pricing details if available */}
+            {optionsPrediction.pricing_ensemble && (
+              <div className="ensemble-details">
+                <h3>🔬 Ensemble Pricing Details</h3>
+                <p><span>📊 Agreement Score:</span> <strong>{optionsPrediction.pricing_ensemble.agreement_score ? `${(optionsPrediction.pricing_ensemble.agreement_score * 100).toFixed(1)}%` : "N/A"}</strong></p>
+                <p><span>🎯 Model Confidence:</span> <strong>{optionsPrediction.pricing_ensemble.confidence ? `${(optionsPrediction.pricing_ensemble.confidence * 100).toFixed(1)}%` : "N/A"}</strong></p>
+                <p><span>📈 Volatility:</span> <strong>{optionsPrediction.pricing_ensemble.volatility ? `${optionsPrediction.pricing_ensemble.volatility}%` : "N/A"}</strong></p>
+              </div>
+            )}
+            
+            {/* Show Greeks if available */}
+            {optionsPrediction.greeks && Object.keys(optionsPrediction.greeks).length > 0 && (
+              <div className="greeks-details">
+                <h3>🧮 Option Greeks</h3>
+                <p><span>Δ Delta:</span> <strong>{optionsPrediction.greeks.delta ? optionsPrediction.greeks.delta.toFixed(3) : "N/A"}</strong></p>
+                <p><span>Γ Gamma:</span> <strong>{optionsPrediction.greeks.gamma ? optionsPrediction.greeks.gamma.toFixed(3) : "N/A"}</strong></p>
+                <p><span>Θ Theta:</span> <strong>{optionsPrediction.greeks.theta ? optionsPrediction.greeks.theta.toFixed(3) : "N/A"}</strong></p>
+                <p><span>ν Vega:</span> <strong>{optionsPrediction.greeks.vega ? optionsPrediction.greeks.vega.toFixed(3) : "N/A"}</strong></p>
+              </div>
+            )}
           </div>
         )}
       </div>
