@@ -4,7 +4,7 @@ const config = {
     API_URL: "https://ml-fno-prediction-server.onrender.com"
   },
   development: {
-    API_URL: "http://localhost:8000"
+    API_URL: "https://ml-fno-prediction-server.onrender.com"  // Use production for now until ensemble pricing is fixed locally
   }
 };
 
