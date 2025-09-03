@@ -336,43 +336,7 @@ const App = () => {
               </strong>
             </p>
 
-            {/* Individual model predictions */}
-            {(prediction.individual_model_details && prediction.individual_model_details.length > 0) ? (
-              <div className="individual-models">
-                <h3>🧩 Individual Models</h3>
-                <div className="models-table">
-                  <div className="models-row models-header">
-                    <div>Model</div>
-                    <div>Prediction</div>
-                    <div>P(Call)</div>
-                    <div>P(Put)</div>
-                  </div>
-                  {prediction.individual_model_details.map((m, idx) => (
-                    <div className="models-row" key={`${m.model || m.name || idx}`}>
-                      <div>{m.model || m.name || `Model ${idx + 1}`}</div>
-                      <div>{m.prediction || m.label || "N/A"}</div>
-                      <div>{m.proba_call != null ? (m.proba_call > 1 ? `${m.proba_call.toFixed(3)}` : `${(m.proba_call * 100).toFixed(1)}%`) : "—"}</div>
-                      <div>{m.proba_put != null ? (m.proba_put > 1 ? `${m.proba_put.toFixed(3)}` : `${(m.proba_put * 100).toFixed(1)}%`) : "—"}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : (prediction.individual_model_predictions && Object.keys(prediction.individual_model_predictions).length > 0) ? (
-              <div className="individual-models">
-                
-                {/* Models Dropdown Block */}
-                <details style={{ marginTop: '1em' }}>
-                  <summary style={{ cursor: 'pointer', fontWeight: 'bold' }}>Models</summary>
-                  <ul style={{ listStyle: 'none', paddingLeft: 0 }}>
-                    {Object.entries(prediction.individual_model_predictions).map(([model, pred]) => (
-                      <li key={model}>
-                        <strong>{model.toUpperCase()}:</strong> {String(pred)}
-                      </li>
-                    ))}
-                  </ul>
-                </details>
-              </div>
-            ) : null}
+            {/* Individual Models block removed */}
 
             {/* Ensemble pricing details if present */}
             {prediction.pricing_ensemble && (

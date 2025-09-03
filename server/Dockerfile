@@ -11,6 +11,7 @@ RUN apt-get update && apt-get install -y \
     wget \
     build-essential \
     python3-dev \
+    curl \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy requirements first to leverage Docker cache
@@ -29,9 +30,9 @@ USER appuser
 # Expose the port
 EXPOSE 8000
 
-# Health check
+# Health check - using the root endpoint that exists
 HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD curl -f http://localhost:8000/ || exit 1
 
 # Environment variables
 ENV PYTHONUNBUFFERED=1
