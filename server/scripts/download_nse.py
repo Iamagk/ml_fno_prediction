@@ -5,7 +5,7 @@ import datetime
 from tqdm import tqdm
 
 # Folder to save Bhavcopy data
-RAW_DATA_DIR = "../data/raw/"
+RAW_DATA_DIR = "server/data/raw/"
 os.makedirs(RAW_DATA_DIR, exist_ok=True)
 print(f"Saving files to: {os.path.abspath(RAW_DATA_DIR)}")
 

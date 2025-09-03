@@ -9,6 +9,7 @@ import logging
 import os
 import time
 from datetime import datetime, timedelta  # Import datetime
+from zoneinfo import ZoneInfo
 from scipy.stats import norm
 import math
 from sklearn.metrics import r2_score
@@ -32,30 +33,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-def get_next_expiry(holidays=None):
+def get_next_expiry(holidays=None, tz: str = "Asia/Kolkata"):
     """
-    Calculate the next expiry date (Thursday) for trading.
-    If Thursday is a holiday, use the previous day (Wednesday).
+    Next weekly expiry: Tuesday (IST). If Tuesday is a holiday, move to Monday.
     """
-    today = datetime.today()
-    weekday = today.weekday()  # Monday = 0, Sunday = 6
-
-    # Calculate the next Thursday
-    if weekday >= 3:  # If today is Thursday or later
-        days_until_next_expiry = (3 - weekday) + 7  # Move to next Thursday
-    else:
-        days_until_next_expiry = 3 - weekday  # This week's Thursday
-
-    next_expiry = today + timedelta(days=days_until_next_expiry)
-    logger.info(f"Calculated next Thursday: {next_expiry.strftime('%Y-%m-%d')}")
-
-    # Check if the calculated expiry is a holiday
+    today_local = datetime.now(ZoneInfo(tz)).date()
+    weekday = today_local.weekday()  # Mon=0, Tue=1, ... Sun=6
+    target_weekday = 1  # Tuesday
+    days_ahead = (target_weekday - weekday) % 7
+    if days_ahead == 0:
+        days_ahead = 7
+    next_expiry = today_local + timedelta(days=days_ahead)
     if holidays:
-        logger.info(f"Holidays list: {holidays}")
-        if next_expiry.strftime("%Y-%m-%d") in holidays:
-            logger.info(f"{next_expiry.strftime('%Y-%m-%d')} is a holiday. Adjusting to the previous day.")
-            next_expiry -= timedelta(days=1)
-
+        iso = next_expiry.strftime("%Y-%m-%d")
+        if iso in holidays:
+            next_expiry = next_expiry - timedelta(days=1)  # Monday
     return next_expiry.strftime("%Y-%m-%d")
 
 @app.get("/")
@@ -258,7 +250,7 @@ def predict_live(symbol: str):
         logger.info(f"Fetched holidays: {holidays}")
 
         # Use dynamic expiry date
-        expiry_date = get_next_expiry(holidays=holidays)
+        expiry_date = get_next_expiry(holidays=holidays, tz="Asia/Kolkata")
         logger.info(f"Calculated expiry date: {expiry_date}")
 
         # Log prediction history
@@ -519,21 +511,91 @@ def update_trade_history(symbol, prediction, actual_price):
     if len(trade_history) > 100:
         trade_history.pop(0)
 
-def calculate_mape(y_true, y_pred):
+
+
+def _sigmoid(x: np.ndarray) -> np.ndarray:
+    return 1 / (1 + np.exp(-x))
+
+def get_individual_model_predictions(ensemble_model, df):
     """
-    Calculate Mean Absolute Percentage Error (MAPE).
+    Returns:
+      - by_name: { model_name: "Call"/"Put" }
+      - details: [ { model, prediction, proba_call, proba_put } ]
+    Uses scaler if present for linear models.
     """
-    y_true, y_pred = np.array(y_true), np.array(y_pred)
-    non_zero_indices = y_true != 0  # Avoid division by zero
-    y_true = y_true[non_zero_indices]
-    y_pred = y_pred[non_zero_indices]
-    mape = np.mean(np.abs((y_true - y_pred) / y_true)) * 100
-    return round(mape, 2)
+    by_name = {}
+    details = []
+
+    # Determine estimators and names from common wrappers
+    estimators = []
+    names = []
+
+    if hasattr(ensemble_model, "models") and ensemble_model.models:
+        estimators = list(ensemble_model.models)
+        names = getattr(ensemble_model, "model_names", None) or [m.__class__.__name__ for m in estimators]
+    elif hasattr(ensemble_model, "estimators_") and ensemble_model.estimators_:
+        names = [n for n, _ in ensemble_model.estimators_]
+        estimators = [e for _, e in ensemble_model.estimators_]
+    else:
+        estimators = [ensemble_model]
+        names = [getattr(ensemble_model, "__class__", type(ensemble_model)).__name__]
+
+    scaler = getattr(ensemble_model, "scaler", None)
+
+    for idx, est in enumerate(estimators):
+        name = names[idx] if idx < len(names) else est.__class__.__name__
+        X_in = df
+
+        try:
+            # Scale if estimator is linear/logistic and scaler exists
+            needs_scale = any(k in name.lower() for k in ["logistic", "linear", "svm"])
+            if needs_scale and scaler is not None:
+                X_in = scaler.transform(df)
+
+            # Predict class
+            pred = est.predict(X_in)
+            pred_val = int(pred[0]) if hasattr(pred, "__len__") else int(pred)
+
+            # Predict probabilities if available, else approximate via decision_function
+            proba_call = None
+            proba_put = None
+
+            if hasattr(est, "predict_proba"):
+                proba = est.predict_proba(X_in)
+                if proba is not None and np.ndim(proba) == 2 and proba.shape[1] >= 2:
+                    proba_call = float(proba[0, 1])
+                    proba_put = float(proba[0, 0])
+            elif hasattr(est, "decision_function"):
+                score = est.decision_function(X_in)
+                score0 = float(score[0]) if hasattr(score, "__len__") else float(score)
+                p1 = float(_sigmoid(score0))
+                proba_call = p1
+                proba_put = 1.0 - p1
+
+            label = "Call" if pred_val == 1 else "Put"
+            by_name[name] = label
+            details.append(
+                {
+                    "model": name,
+                    "prediction": label,
+                    "proba_call": None if proba_call is None else round(proba_call, 4),
+                    "proba_put": None if proba_put is None else round(proba_put, 4),
+                }
+            )
+        except Exception as e:
+            by_name[name] = f"error: {e}"
+            details.append({"model": name, "error": str(e)})
+
+    return {"by_name": by_name, "details": details}
 
 @app.get("/predict_with_options")
 def predict_with_options(symbol: str):
     try:
         logger.info(f"Received request for /predict_with_options with symbol: {symbol}")
+
+        # Always define expiry_date at the start
+        expiry_date = get_next_expiry()
+        logger.info(f"Expiry date: {expiry_date}")
 
         # Fetch live stock data
         live_data = fetch_stock_data(symbol)
@@ -544,112 +606,125 @@ def predict_with_options(symbol: str):
 
         logger.info(f"Live data fetched for {symbol}: {live_data}")
 
-        # Ensure only the expected features are passed
+        # Ensure only the expected features are passed and in correct order
         df = live_data[FEATURE_NAMES].copy()
+        df = df.reindex(columns=FEATURE_NAMES)  # Ensure column order matches model
+        df = df.astype(float)
+        df = df.reset_index(drop=True)
+        feature_data = df.iloc[0].to_dict()
 
         # Log feature data
         logger.info(f"Feature data for prediction: {df}")
+        logger.info(f"API feature columns: {df.columns.tolist()}")
 
-        # Make prediction
+        # Check if model is loaded
+        if model is None:
+            logger.error("Ensemble model is not loaded. Cannot make predictions.")
+            return {
+                "error": "Model Not Loaded",
+                "prediction": "Model Not Loaded",
+                "suggested_action": "N/A",
+                "strike_price": "N/A",
+                "stop_loss_strike": "N/A",
+                "exit_price_strike": "N/A",
+                "stop_loss_option": "N/A",
+                "exit_price_option": "N/A",
+                "expiry": "N/A",
+                "confidence": "N/A",
+                "option_price": "N/A",
+                "individual_model_predictions": {},
+                "individual_model_details": [],
+            }
+
+        # Make ensemble prediction
         prediction = model.predict(df)[0]
         logger.info(f"Model prediction: {prediction}")
 
+        # Individual model predictions (labels + probabilities)
+        indiv = get_individual_model_predictions(model, df)
+        individual_preds = indiv["by_name"]
+
         # Extract current price for calculations
-        current_price = df.iloc[0]['CLOSE']
+        current_price = df['CLOSE'].iloc[0]
         if current_price == 0:
             raise ValueError("Current price of the stock is unavailable.")
 
         # Get actual model confidence score
         confidence = get_model_confidence(model, df)
-        logger.info(f"Model confidence: {confidence}")
 
         # Fetch the real strike price from Yahoo Finance
         strike_price = get_nearest_strike_price(symbol, current_price) or current_price
-        logger.info(f"Nearest strike price: {strike_price}")
+        # For call: round up to nearest 50, for put: round down to nearest 50
+        if prediction == 1:
+            strike_price = math.ceil(float(strike_price) / 50) * 50
+        else:
+            strike_price = math.floor(float(strike_price) / 50) * 50
 
-        # Round strike price to the nearest denomination of 50
-        if prediction == 1:  # Call option
-            strike_price = math.ceil(strike_price / 50) * 50  # Round up to the nearest 50
-            option_type = "call"
-        else:  # Put option
-            strike_price = math.floor(strike_price / 50) * 50  # Round down to the nearest 50
-            option_type = "put"
+        # Robust fallback for ATR
+        atr = feature_data.get('ATR', 0)
+        if atr is None or np.isnan(atr) or atr == 0:
+            atr = max(0.01 * strike_price, 1.0)  # fallback: 1% of strike or 1
 
-        logger.info(f"Adjusted strike price: {strike_price}")
+        # Robust fallback for support/resistance
+        support_level = feature_data.get('Support', strike_price - atr) if 'Support' in feature_data else strike_price - atr
+        resistance_level = feature_data.get('Resistance', strike_price + atr) if 'Resistance' in feature_data else strike_price + atr
+        if support_level is None or np.isnan(support_level):
+            support_level = strike_price - atr
+        if resistance_level is None or np.isnan(resistance_level):
+            resistance_level = strike_price + atr
 
         # Calculate stop loss and exit price for strike price
-        atr = df.iloc[0]['ATR']  # Average True Range
-        support_level = df.iloc[0]['Support'] if 'Support' in df.columns else strike_price - atr
-        resistance_level = df.iloc[0]['Resistance'] if 'Resistance' in df.columns else strike_price + atr
-
         if prediction == 1:  # Call option
-            stop_loss_strike = support_level  # Use support level as stop loss for a buy trade
-            exit_price_strike = resistance_level  # Use resistance level as exit price for a buy trade
+            stop_loss_strike = round(float(support_level), 2)
+            exit_price_strike = round(float(resistance_level), 2)
         else:  # Put option
-            stop_loss_strike = resistance_level  # Use resistance level as stop loss for a sell trade
-            exit_price_strike = support_level  # Use support level as exit price for a sell trade
+            stop_loss_strike = round(float(resistance_level), 2)
+            exit_price_strike = round(float(support_level), 2)
 
-        # Round stop loss and exit price for strike price to 2 decimal places
-        stop_loss_strike = round(float(stop_loss_strike), 2)
-        exit_price_strike = round(float(exit_price_strike), 2)
-        logger.info(f"Stop loss for strike price: {stop_loss_strike}, Exit price for strike price: {exit_price_strike}")
-
-        # Use dynamic expiry date
-        expiry_date = get_next_expiry()
-        logger.info(f"Expiry date: {expiry_date}")
-
-        # Estimate option price
+        # Estimate option price using Black-Scholes model
+        option_type = "call" if prediction == 1 else "put"
         option_price = estimate_option_price(symbol, current_price, strike_price, expiry_date, option_type)
-
-        if option_price is None or np.isnan(option_price):
-            logger.error("Option price could not be calculated")
-            option_price = None  # Ensure it's explicitly set to None
-        else:
-            option_price = round(float(option_price), 3)  # Convert to Python float and round to 3 decimal places
-            logger.info(f"Rounded option price: {option_price}")
 
         # Calculate stop loss and exit price for options price
         if option_price is not None and not np.isnan(option_price):
             if prediction == 1:  # Call option
-                stop_loss_option = option_price - max((current_price - support_level), 0)
-                exit_price_option = option_price + max((resistance_level - current_price), 0)
+                stop_loss_option = round(float(option_price - max((current_price - support_level), 0)), 2)
+                exit_price_option = round(float(option_price + max((resistance_level - current_price), 0)), 2)
             else:  # Put option
-                stop_loss_option = option_price - max((resistance_level - current_price), 0)
-                exit_price_option = option_price + max((current_price - support_level), 0)
-
-            # Fallback to percentage-based stop loss if the calculated stop loss is invalid
-            if stop_loss_option <= 0:
-                percentage = 0.20  # Set stop loss at 20% below the option price
-                stop_loss_option = option_price * (1 - percentage)
-
-            # Round stop loss and exit price for options price to 2 decimal places
-            stop_loss_option = round(float(stop_loss_option), 2)
-            exit_price_option = round(float(exit_price_option), 2)
-            logger.info(f"Stop loss for options price: {stop_loss_option}, Exit price for options price: {exit_price_option}")
+                stop_loss_option = round(float(option_price - max((resistance_level - current_price), 0)), 2)
+                exit_price_option = round(float(option_price + max((current_price - support_level), 0)), 2)
+            if stop_loss_option <= 0 or np.isnan(stop_loss_option):
+                stop_loss_option = round(float(option_price * 0.8), 2)
         else:
-            logger.warning("Option price is invalid (NaN or None). Cannot calculate stop loss or exit price for options.")
-            stop_loss_option = None
-            exit_price_option = None
+            stop_loss_option = round(float(strike_price * 0.8), 2)
+            exit_price_option = round(float(strike_price * 1.2), 2)
 
         # Round confidence to 3 decimal places
         confidence = round(float(confidence), 3)
-        logger.info(f"Rounded confidence: {confidence}")
 
-        # Construct the response
+        # Use dynamic expiry date (already Tuesday via get_next_expiry)
+        expiry_date = get_next_expiry()
+        logger.info(f"Expiry date: {expiry_date}")
+
+        # Format strike price for display
+        strike_price_fmt = f"{strike_price} CE" if prediction == 1 else f"{strike_price} PE"
+
         response = {
             "prediction": int(prediction),
             "suggested_action": "Buy Call Option" if prediction == 1 else "Buy Put Option",
-            "strike_price": f"{strike_price} CE" if prediction == 1 else f"{strike_price} PE",
-            "stop_loss_strike": stop_loss_strike,
-            "exit_price_strike": exit_price_strike,
+            "strike_price": strike_price_fmt,
+            "option_price": option_price,
             "stop_loss_option": stop_loss_option,
             "exit_price_option": exit_price_option,
+            "stop_loss_strike": stop_loss_strike,
+            "exit_price_strike": exit_price_strike,
             "expiry": expiry_date,
             "confidence": confidence,
-            "option_price": option_price
+            "individual_model_predictions": individual_preds,
+            "individual_model_details": indiv["details"],
         }
 
-        logger.info(f"API Response sent to frontend: {response}")
+        logger.info(f"API Response: {response}")
         return response
 
     except Exception as e:
@@ -749,27 +824,19 @@ api_key = "A1j9Nr72uN9scpcfcLmBJL2wGuOfVPXM"  # Replace with your API key
 holidays = fetch_holidays(api_key, country="IN", year=2025)
 print(f"Holidays in 2025: {holidays}")
 
+@app.get("/debug_expiry")
+def debug_expiry():
+    tz = "Asia/Kolkata"
+    today_local = datetime.now(ZoneInfo(tz)).date()
+    weekday = today_local.weekday()
+    expiry = get_next_expiry(holidays=[], tz=tz)
+    return {
+        "today_ist": today_local.strftime("%Y-%m-%d"),
+        "today_weekday": weekday,  # Mon=0, Tue=1
+        "expiry_ist_tuesday": expiry
+    }
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
-
-y_true = [3, -0.5, 2, 7]
-y_pred = [2.5, 0.0, 2, 8]
-
-r2 = r2_score(y_true, y_pred)
-print(f"R²: {r2}")
-
-def mean_absolute_percentage_error(y_true, y_pred):
-    y_true, y_pred = np.array(y_true), np.array(y_pred)
-    non_zero_indices = y_true != 0
-    y_true = y_true[non_zero_indices]
-    y_pred = y_pred[non_zero_indices]
-    return np.mean(np.abs((y_true - y_pred) / y_true)) * 100
-
-# Example usage
-y_true = [100, 200, 300, 400]
-y_pred = [110, 190, 290, 410]
-
-mape = mean_absolute_percentage_error(y_true, y_pred)
-print(f"MAPE: {mape}%")
 

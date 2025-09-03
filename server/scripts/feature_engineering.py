@@ -3,12 +3,11 @@ import numpy as np
 import talib
 import os
 
-# Load the latest processed data file
 data_dir = "data/processed"
-files = sorted(os.listdir(data_dir), reverse=True)
-latest_file = os.path.join(data_dir, files[0])
-
-df = pd.read_csv(latest_file, index_col=0, parse_dates=True)
+input_file = os.path.join(data_dir, "cleaned_all_fno.csv")
+if not os.path.exists(input_file):
+    raise FileNotFoundError(f"Processed data file not found: {input_file}")
+df = pd.read_csv(input_file)
 
 # Standardize column names to uppercase (and remove spaces if any)
 df.columns = [col.upper().replace(" ", "_") for col in df.columns]
@@ -66,7 +65,9 @@ if 'CONTRACTS' not in df.columns:
     raise ValueError("CONTRACTS column not found in data. Please check your Bhavcopy file.")
 
 # Save the feature-engineered data
-output_file = "data/featured/featured_data.csv"
+output_dir = "data/featured"
+os.makedirs(output_dir, exist_ok=True)
+output_file = os.path.join(output_dir, "featured_all_fno.csv")
 df.to_csv(output_file, index=False)
 print(f"✅ Feature engineering complete. Data saved to: {output_file}")
 print(df.columns)
