@@ -106,13 +106,6 @@ The dashboard's server address is set in `client/src/config.js`. It currently po
 
 More detail in [QUICKSTART.md](QUICKSTART.md), [DEPLOYMENT.md](DEPLOYMENT.md) and [RENDER_DEPLOY.md](RENDER_DEPLOY.md).
 
-## Known issues
-
-- The Calendarific API key is written directly into `server/index.py` and `server/deploy_xgboost_api_options_yf_fastapi.py`. It should move to an environment variable and the old key should be rotated.
-- CORS allows every origin (`"*"`) with credentials on.
-- The dashboard first tries `/predict_combined`, which the server doesn't have, then falls back to `/predict_with_options`.
-- The files in the top-level `scripts/` folder are empty placeholders.
-- `server/venv/` and `client/node_modules/` are committed, which makes the repo very large.
 
 ## Tech stack
 
